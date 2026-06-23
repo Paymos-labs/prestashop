@@ -1,0 +1,27 @@
+{
+    "name": "paymos/prestashop-paymos",
+    "description": "Paymos payment module for PrestaShop 8 and 9 — accept USDT and USDC across 13 networks.",
+    "type": "prestashop-module",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Paymos",
+            "homepage": "https://paymos.io"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "paymos/php-sdk": "*"
+    },
+    "config": {
+        "vendor-dir": "paymos/vendor",
+        "preferred-install": "dist",
+        "optimize-autoloader": true
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../php-sdk"
+        }
+    ]
+}
