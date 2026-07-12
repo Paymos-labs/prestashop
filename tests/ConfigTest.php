@@ -24,6 +24,13 @@ function test_prestashop_config_defaults_base_url_when_absent()
 
 function test_prestashop_generated_config_supplies_read_only_credentials()
 {
+    $settings = prestashop_settings(array(
+        'PAYMOS_MODE' => 'live',
+        'PAYMOS_LIVE_API_KEY' => '',
+        'PAYMOS_LIVE_API_SECRET' => '',
+        'PAYMOS_LIVE_PROJECT_ID' => '',
+        'PAYMOS_LIVE_WEBHOOK_SECRET' => '',
+    ));
     paymos_prestashop_write_generated_config("array(
         'config_version' => 2,
         'environments' => array(
@@ -44,13 +51,7 @@ function test_prestashop_generated_config_supplies_read_only_credentials()
         ),
     )");
 
-    $config = Config::fromSettings(prestashop_settings(array(
-        'PAYMOS_MODE' => 'live',
-        'PAYMOS_LIVE_API_KEY' => '',
-        'PAYMOS_LIVE_API_SECRET' => '',
-        'PAYMOS_LIVE_PROJECT_ID' => '',
-        'PAYMOS_LIVE_WEBHOOK_SECRET' => '',
-    )));
+    $config = Config::fromSettings($settings);
 
     assertSameValue('live', $config->environment(), 'generated config must still honor the mode switch.');
     assertSameValue('pk_live_zip', $config->clientConfig()->apiKey(), 'live API key must come from generated config.');
