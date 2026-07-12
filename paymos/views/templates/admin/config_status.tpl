@@ -12,7 +12,7 @@
   <div class="panel-body">
     {if $paymos_has_generated}
       <p>
-        <span class="badge badge-success">{l s='Credentials loaded from package' mod='paymos'}</span>
+        <span class="badge badge-success">{l s='Connected securely' mod='paymos'}</span>
       </p>
       <table class="table">
         <tbody>
@@ -44,12 +44,12 @@
           {/if}
         </tbody>
       </table>
-      <p class="help-block">{l s='Set this Webhook URL for your project in the Paymos dashboard so order statuses update automatically. The Reconcile cron URL is an optional safety net for missed callbacks — schedule it (e.g. hourly) from your host.' mod='paymos'}</p>
+      <p class="help-block">{l s='Paymos registered this Webhook URL automatically for the selected project. The Reconcile cron URL is an optional safety net for missed callbacks — schedule it (e.g. hourly) from your host.' mod='paymos'}</p>
     {else}
       <p>
-        <span class="badge badge-warning">{l s='No credentials package found' mod='paymos'}</span>
+        <span class="badge badge-warning">{l s='Not connected' mod='paymos'}</span>
       </p>
-      <p class="help-block">{l s='Download your configured package from the Paymos dashboard (Developers → Integrations → PrestaShop) and re-upload the module. The package injects read-only sandbox and live credentials — you never type secrets here.' mod='paymos'}</p>
+      <p class="help-block">{l s='Open the intended project in Paymos, then click Connect Paymos above and approve this store. Sandbox and Live credentials are delivered once, encrypted in this installation, and never entered manually.' mod='paymos'}</p>
     {/if}
   </div>
 </div>
