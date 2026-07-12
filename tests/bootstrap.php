@@ -70,7 +70,7 @@ function assertContainsValue($needle, $haystack, $message)
  */
 function prestashop_settings(array $overrides = array())
 {
-    return array_merge(array(
+    $settings = array_merge(array(
         'PAYMOS_MODE' => 'sandbox',
         'PAYMOS_API_BASE_URL' => 'https://api.paymos.test',
         'PAYMOS_SANDBOX_API_KEY' => 'pk_test_123',
@@ -82,6 +82,27 @@ function prestashop_settings(array $overrides = array())
         'PAYMOS_LIVE_PROJECT_ID' => 'prj_live_123',
         'PAYMOS_LIVE_WEBHOOK_SECRET' => 'whsec_live',
     ), $overrides);
+
+    PaymosPrestaShop\Config::useConfigForTests(array(
+        'environments' => array(
+            'sandbox' => array(
+                'base_url' => (string) $settings['PAYMOS_API_BASE_URL'],
+                'api_key' => (string) $settings['PAYMOS_SANDBOX_API_KEY'],
+                'api_secret' => (string) $settings['PAYMOS_SANDBOX_API_SECRET'],
+                'project_id' => (string) $settings['PAYMOS_SANDBOX_PROJECT_ID'],
+                'webhook_secret' => (string) $settings['PAYMOS_SANDBOX_WEBHOOK_SECRET'],
+            ),
+            'live' => array(
+                'base_url' => (string) $settings['PAYMOS_API_BASE_URL'],
+                'api_key' => (string) $settings['PAYMOS_LIVE_API_KEY'],
+                'api_secret' => (string) $settings['PAYMOS_LIVE_API_SECRET'],
+                'project_id' => (string) $settings['PAYMOS_LIVE_PROJECT_ID'],
+                'webhook_secret' => (string) $settings['PAYMOS_LIVE_WEBHOOK_SECRET'],
+            ),
+        ),
+    ));
+
+    return $settings;
 }
 
 /**
@@ -113,6 +134,7 @@ function prestashop_invoice_event($eventId, $eventType, $status, array $override
     return array_replace_recursive(array(
         'event_id' => $eventId,
         'event_type' => $eventType,
+        'version' => 1,
         'occurred_at' => 1709000000,
         'data' => array(
             'invoice_id' => 'inv_123',
@@ -150,11 +172,6 @@ function prestashop_snapshot(array $overrides = array())
 
 function paymos_prestashop_reset_test_state()
 {
-    $config = PAYMOS_PRESTASHOP_MODULE_DIR . 'paymos-config.php';
-    if (is_file($config)) {
-        unlink($config);
-    }
-
     if (class_exists('PaymosPrestaShop\\Config') && method_exists('PaymosPrestaShop\\Config', 'resetForTests')) {
         PaymosPrestaShop\Config::resetForTests();
     }
@@ -162,11 +179,8 @@ function paymos_prestashop_reset_test_state()
 
 function paymos_prestashop_write_generated_config($php)
 {
-    file_put_contents(PAYMOS_PRESTASHOP_MODULE_DIR . 'paymos-config.php', "<?php\n\nreturn " . $php . ";\n");
-
-    if (class_exists('PaymosPrestaShop\\Config') && method_exists('PaymosPrestaShop\\Config', 'resetForTests')) {
-        PaymosPrestaShop\Config::resetForTests();
-    }
+    $config = eval('return ' . $php . ';');
+    PaymosPrestaShop\Config::useConfigForTests(is_array($config) ? $config : array());
 }
 
 /**

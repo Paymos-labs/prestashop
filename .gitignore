@@ -12,5 +12,4 @@ Thumbs.db
 *.swp
 *.zip
 .phpunit.result.cache
-paymos/paymos-config.php
 artifacts/

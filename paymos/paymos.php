@@ -61,7 +61,7 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.0.0';
+        $this->version = '1.0.1';
         $this->author = 'Paymos';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = array('min' => '1.7.6.0', 'max' => _PS_VERSION_);
@@ -92,7 +92,6 @@ class Paymos extends PaymentModule
         }
 
         Configuration::updateValue('PAYMOS_MODE', 'sandbox');
-        Configuration::updateValue('PAYMOS_API_BASE_URL', Config::DEFAULT_BASE_URL);
 
         return Migrations::install(new PrestaShopDb());
     }
@@ -106,7 +105,6 @@ class Paymos extends PaymentModule
         Migrations::uninstall(new PrestaShopDb());
 
         Configuration::deleteByName('PAYMOS_MODE');
-        Configuration::deleteByName('PAYMOS_API_BASE_URL');
         Configuration::deleteByName('PAYMOS_SANDBOX_API_KEY');
         Configuration::deleteByName('PAYMOS_SANDBOX_API_SECRET');
         Configuration::deleteByName('PAYMOS_SANDBOX_PROJECT_ID');
@@ -115,6 +113,8 @@ class Paymos extends PaymentModule
         Configuration::deleteByName('PAYMOS_LIVE_API_SECRET');
         Configuration::deleteByName('PAYMOS_LIVE_PROJECT_ID');
         Configuration::deleteByName('PAYMOS_LIVE_WEBHOOK_SECRET');
+        Configuration::deleteByName('PAYMOS_CREDENTIALS_V1');
+        Configuration::deleteByName('PAYMOS_CONNECT_STATE_V1');
 
         return parent::uninstall();
     }
@@ -166,6 +166,13 @@ class Paymos extends PaymentModule
 
     public function getContent()
     {
+        if (Tools::isSubmit('paymosConnectStart')) {
+            $this->connectJson($this->startConnection());
+        }
+        if (Tools::isSubmit('paymosConnectPoll')) {
+            $this->connectJson($this->pollConnection());
+        }
+
         $output = '';
 
         if (Tools::isSubmit('submitPaymos')) {
@@ -180,7 +187,7 @@ class Paymos extends PaymentModule
             }
         }
 
-        return $output . $this->renderConfigStatus() . $this->renderForm();
+        return $output . $this->renderConnect() . $this->renderConfigStatus() . $this->renderForm();
     }
 
     private function installOrderStates()
@@ -240,23 +247,17 @@ class Paymos extends PaymentModule
             $this->postErrors[] = $this->l('Select a valid mode (Sandbox or Live).');
         }
 
-        $baseUrl = trim((string) Tools::getValue('PAYMOS_API_BASE_URL'));
-        if ($baseUrl !== '' && !Validate::isUrl($baseUrl)) {
-            $this->postErrors[] = $this->l('The API base URL is not a valid URL.');
-        }
     }
 
     private function postProcess()
     {
         Configuration::updateValue('PAYMOS_MODE', Tools::getValue('PAYMOS_MODE'));
 
-        $baseUrl = trim((string) Tools::getValue('PAYMOS_API_BASE_URL'));
-        Configuration::updateValue('PAYMOS_API_BASE_URL', $baseUrl === '' ? Config::DEFAULT_BASE_URL : $baseUrl);
     }
 
     private function renderConfigStatus()
     {
-        $hasGenerated = Config::hasGeneratedConfig();
+        $hasGenerated = trim((string) Configuration::get('PAYMOS_CREDENTIALS_V1')) !== '';
         $mode = Configuration::get('PAYMOS_MODE') ?: 'sandbox';
         $masked = '';
         $projectId = '';
@@ -310,7 +311,7 @@ class Paymos extends PaymentModule
                     'title' => $this->l('Paymos settings'),
                     'icon' => 'icon-cogs',
                 ),
-                'description' => $this->l('Credentials are injected from the package you downloaded in the Paymos dashboard and are read-only. Only the mode and API base URL are editable here.'),
+                'description' => $this->l('Connect this shop to the project currently selected in Paymos. Official packages contain no merchant secrets.'),
                 'input' => array(
                     array(
                         'type' => 'radio',
@@ -320,12 +321,6 @@ class Paymos extends PaymentModule
                             array('id' => 'mode_sandbox', 'value' => 'sandbox', 'label' => $this->l('Sandbox')),
                             array('id' => 'mode_live', 'value' => 'live', 'label' => $this->l('Live')),
                         ),
-                    ),
-                    array(
-                        'type' => 'text',
-                        'label' => $this->l('API base URL'),
-                        'name' => 'PAYMOS_API_BASE_URL',
-                        'desc' => $this->l('Leave as https://api.paymos.io unless Paymos support tells you otherwise.'),
                     ),
                 ),
                 'submit' => array(
@@ -343,7 +338,6 @@ class Paymos extends PaymentModule
         $helper->default_form_language = (int) $this->context->language->id;
         $helper->fields_value = array(
             'PAYMOS_MODE' => Configuration::get('PAYMOS_MODE') ?: 'sandbox',
-            'PAYMOS_API_BASE_URL' => Configuration::get('PAYMOS_API_BASE_URL') ?: Config::DEFAULT_BASE_URL,
         );
 
         return $helper->generateForm(array($fieldsForm));
@@ -356,15 +350,6 @@ class Paymos extends PaymentModule
     {
         $keys = array(
             'PAYMOS_MODE',
-            'PAYMOS_API_BASE_URL',
-            'PAYMOS_SANDBOX_API_KEY',
-            'PAYMOS_SANDBOX_API_SECRET',
-            'PAYMOS_SANDBOX_PROJECT_ID',
-            'PAYMOS_SANDBOX_WEBHOOK_SECRET',
-            'PAYMOS_LIVE_API_KEY',
-            'PAYMOS_LIVE_API_SECRET',
-            'PAYMOS_LIVE_PROJECT_ID',
-            'PAYMOS_LIVE_WEBHOOK_SECRET',
         );
 
         $settings = array();
@@ -372,7 +357,116 @@ class Paymos extends PaymentModule
             $settings[$key] = (string) Configuration::get($key);
         }
 
+        $encoded = trim((string) Configuration::get('PAYMOS_CREDENTIALS_V1'));
+        if ($encoded !== '') {
+            $payload = \Paymos\Plugin\AesGcmEnvelope::open($encoded, $this->keyMaterial(), 'paymos-prestashop-credentials-v1');
+            if (!isset($payload['schema'], $payload['environments'])
+                || (int) $payload['schema'] !== 1
+                || !is_array($payload['environments'])) {
+                throw new \RuntimeException('Stored Paymos credentials have an invalid schema.');
+            }
+            $environments = \Paymos\Plugin\CredentialSet::normalize($payload['environments']);
+            foreach ($environments as $environment => $values) {
+                foreach ($values as $field => $value) {
+                    $settings['PAYMOS_' . strtoupper($environment) . '_' . strtoupper($field)] = $value;
+                }
+            }
+        }
+
         return $settings;
+    }
+
+    private function renderConnect()
+    {
+        $base = AdminController::$currentIndex . '&configure=' . $this->name
+            . '&token=' . rawurlencode(Tools::getAdminTokenLite('AdminModules'));
+        $start = $base . '&paymosConnectStart=1';
+        $poll = $base . '&paymosConnectPoll=1';
+
+        return '<div class="panel"><h3>Connect Paymos</h3>'
+            . '<p>Connects this exact shop URL to the project currently selected in Paymos.</p>'
+            . '<button type="button" class="btn btn-primary" id="paymos-connect-button">Connect Paymos</button>'
+            . '<p id="paymos-connect-status" aria-live="polite"></p></div>'
+            . '<script>(function(){var b=document.getElementById("paymos-connect-button"),s=document.getElementById("paymos-connect-status");'
+            . 'if(!b)return;b.addEventListener("click",function(){b.disabled=true;s.textContent="Starting secure connection…";'
+            . 'fetch(' . json_encode($start) . ',{method:"POST",credentials:"same-origin"}).then(function(r){return r.json();}).then(function(j){'
+            . 'if(j.error)throw new Error(j.error);window.open(j.verification_url,"_blank","noopener,noreferrer");s.textContent="Waiting for approval. Code: "+j.user_code;'
+            . 'var i=Math.max(1,Number(j.interval||5))*1000;setTimeout(function p(){fetch(' . json_encode($poll) . ',{method:"POST",credentials:"same-origin"})'
+            . '.then(function(r){return r.json();}).then(function(x){if(x.error)throw new Error(x.error);if(x.status==="connected"){location.reload();return;}setTimeout(p,x.status==="slow_down"?i+5000:i);})'
+            . '.catch(function(e){s.textContent=e.message;b.disabled=false;});},i);}).catch(function(e){s.textContent=e.message;b.disabled=false;});});})();</script>';
+    }
+
+    private function startConnection()
+    {
+        try {
+            $state = (new \Paymos\Connect\DeviceConnectClient('https://app.paymos.io'))->start('prestashop', $this->sourceUrl());
+            $this->saveProtected('PAYMOS_CONNECT_STATE_V1', array(
+                'schema' => 1,
+                'expires_at' => time() + (int) $state['expires_in'],
+                'state' => $state,
+            ), 'paymos-prestashop-connect-state-v1');
+            return array('verification_url' => $state['verification_url'], 'user_code' => $state['user_code'], 'interval' => $state['interval']);
+        } catch (\Throwable $exception) {
+            return array('error' => $exception->getMessage());
+        }
+    }
+
+    private function pollConnection()
+    {
+        try {
+            $payload = $this->loadProtected('PAYMOS_CONNECT_STATE_V1', 'paymos-prestashop-connect-state-v1');
+            if (!isset($payload['state']['device_code']) || time() >= (int) ($payload['expires_at'] ?? 0)) {
+                throw new \RuntimeException('No active Paymos connection request.');
+            }
+            $result = (new \Paymos\Connect\DeviceConnectClient('https://app.paymos.io'))->poll((string) $payload['state']['device_code']);
+            if ($result['status'] === 'connected') {
+                if ($result['plugin'] !== 'prestashop' || rtrim((string) $result['source_url'], '/') !== $this->sourceUrl()) {
+                    throw new \RuntimeException('Paymos connection response does not match this shop.');
+                }
+                $this->saveProtected('PAYMOS_CREDENTIALS_V1', array('schema' => 1, 'environments' => $result['credentials']), 'paymos-prestashop-credentials-v1');
+                Configuration::deleteByName('PAYMOS_CONNECT_STATE_V1');
+                Config::resetForTests();
+                return array('status' => 'connected');
+            }
+            if (in_array($result['status'], array('authorization_pending', 'slow_down'), true)) {
+                return array('status' => $result['status']);
+            }
+            Configuration::deleteByName('PAYMOS_CONNECT_STATE_V1');
+            return array('error' => 'Paymos connection was denied or expired.');
+        } catch (\Throwable $exception) {
+            return array('error' => $exception->getMessage());
+        }
+    }
+
+    private function connectJson(array $payload)
+    {
+        header('Content-Type: application/json');
+        echo json_encode($payload);
+        exit;
+    }
+
+    private function sourceUrl()
+    {
+        return rtrim((string) Tools::getShopDomainSsl(true) . (string) __PS_BASE_URI__, '/');
+    }
+
+    private function keyMaterial()
+    {
+        if (!defined('_COOKIE_KEY_') || trim((string) _COOKIE_KEY_) === '') {
+            throw new \RuntimeException('PrestaShop installation key is not configured.');
+        }
+        return (string) _COOKIE_KEY_;
+    }
+
+    private function saveProtected($key, array $payload, $aad)
+    {
+        Configuration::updateValue($key, \Paymos\Plugin\AesGcmEnvelope::seal($payload, $this->keyMaterial(), $aad));
+    }
+
+    private function loadProtected($key, $aad)
+    {
+        $encoded = trim((string) Configuration::get($key));
+        return $encoded === '' ? array() : \Paymos\Plugin\AesGcmEnvelope::open($encoded, $this->keyMaterial(), $aad);
     }
 
     /**

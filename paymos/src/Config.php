@@ -6,31 +6,13 @@ namespace PaymosPrestaShop;
 
 use Paymos\ClientConfig;
 
-/**
- * Resolves Paymos credentials and presentation for the PrestaShop module.
- *
- * Two-tier, exactly like every other Paymos CMS plugin:
- *   1. The dashboard-generated paymos-config.php (v2 shape:
- *      {config_version:2, environments:{sandbox:{…}, live:{…}}}) carries the
- *      read-only secrets and OVERRIDES anything stored in PrestaShop config.
- *   2. The PrestaShop `Configuration` tier (passed in as $settings) supplies the
- *      mode + API base URL, and the per-environment credential keys
- *      (PAYMOS_<ENV>_<FIELD>) act as a fallback. In the shipped product those
- *      credential keys are only ever populated by the generated config (the
- *      admin screen does NOT expose secret fields); the settings tier is the
- *      injection seam the test suite uses to exercise Config without writing a
- *      generated file.
- *
- * The merchant never types secrets — they arrive inside the ZIP. The admin
- * screen only exposes `mode` (sandbox/live) and the API base URL. base_url
- * defaults to https://api.paymos.io when the generated config omits it.
- */
+/** Resolves the encrypted credentials stored by the Paymos Connect flow. */
 final class Config
 {
     public const DEFAULT_BASE_URL = 'https://api.paymos.io';
 
-    /** @var array<string, mixed>|null */
-    private static $generated;
+    /** @var array<string, mixed> */
+    private static $testConfig = array();
 
     /** @var array<string, string> */
     private $settings;
@@ -106,12 +88,7 @@ final class Config
     public function apiBaseUrlForEnvironment($environment)
     {
         $environment = $this->normalizeEnvironment($environment);
-        $generated = self::generatedEnvironment($environment);
-        if (isset($generated['base_url']) && is_scalar($generated['base_url']) && trim((string) $generated['base_url']) !== '') {
-            return rtrim((string) $generated['base_url'], '/');
-        }
-
-        $baseUrl = $this->setting('PAYMOS_API_BASE_URL');
+        $baseUrl = $this->environmentValue($environment, 'base_url');
 
         return $baseUrl === '' ? self::DEFAULT_BASE_URL : rtrim($baseUrl, '/');
     }
@@ -139,13 +116,6 @@ final class Config
         return $secrets;
     }
 
-    public static function hasGeneratedConfig()
-    {
-        $generated = self::generated();
-
-        return isset($generated['environments']) && is_array($generated['environments']);
-    }
-
     public function maskedApiKey()
     {
         $apiKey = $this->environmentValue($this->environment(), 'api_key');
@@ -162,7 +132,13 @@ final class Config
 
     public static function resetForTests()
     {
-        self::$generated = null;
+        self::$testConfig = array();
+    }
+
+    /** @param array<string, mixed> $config */
+    public static function useConfigForTests(array $config)
+    {
+        self::$testConfig = $config;
     }
 
     private function assertEnvironmentConfigured($environment)
@@ -210,11 +186,10 @@ final class Config
     private function environmentValue($environment, $field)
     {
         $environment = $this->normalizeEnvironment($environment);
-        $generated = self::generatedEnvironment($environment);
-        if (isset($generated[$field]) && is_scalar($generated[$field]) && trim((string) $generated[$field]) !== '') {
-            return trim((string) $generated[$field]);
+        $test = self::testEnvironment($environment);
+        if (isset($test[$field]) && is_scalar($test[$field]) && trim((string) $test[$field]) !== '') {
+            return trim((string) $test[$field]);
         }
-
         return $this->setting('PAYMOS_' . strtoupper($environment) . '_' . strtoupper($field));
     }
 
@@ -235,42 +210,15 @@ final class Config
             : '';
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private static function generatedEnvironment($environment)
+    /** @return array<string, mixed> */
+    private static function testEnvironment($environment)
     {
-        $generated = self::generated();
-        if (!isset($generated['environments']) || !is_array($generated['environments'])) {
-            return array();
-        }
-
-        $environments = $generated['environments'];
-
+        $environments = isset(self::$testConfig['environments']) && is_array(self::$testConfig['environments'])
+            ? self::$testConfig['environments']
+            : array();
         return isset($environments[$environment]) && is_array($environments[$environment])
             ? $environments[$environment]
             : array();
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private static function generated()
-    {
-        if (self::$generated !== null) {
-            return self::$generated;
-        }
-
-        $file = dirname(__DIR__) . '/paymos-config.php';
-        if (!is_readable($file)) {
-            self::$generated = array();
-
-            return self::$generated;
-        }
-
-        $config = require $file;
-        self::$generated = is_array($config) ? $config : array();
-
-        return self::$generated;
-    }
 }
