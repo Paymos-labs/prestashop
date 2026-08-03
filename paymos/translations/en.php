@@ -1,19 +1,36 @@
 <?php
-/**
- * English source dictionary for the Paymos PrestaShop module.
- *
- * The module's source strings are English, so PrestaShop's l()/{l s=…} resolve to
- * the source itself and no English overrides are needed here — this file is the
- * empty English baseline. To localize (e.g. Russian), a merchant generates the
- * translation from the PrestaShop admin (International → Translations → "Installed
- * modules translations"), which writes a per-language file (translations/ru.php)
- * with the correct md5-keyed entries for this install. This matches how PrestaShop
- * payment modules are localized; the source strings stay English in the package.
- *
- * @author    Paymos
- * @copyright Paymos
- * @license   https://opensource.org/licenses/MIT MIT License
- */
 
 global $_MODULE;
 $_MODULE = array();
+$_MODULE['<{paymos}prestashop>config_status_0b8764d3dc1a8f0ba45f7ab682e65766'] = 'Webhook URL';
+$_MODULE['<{paymos}prestashop>config_status_2841f066e0cfa09453b4b9251261d09a'] = 'Paymos connection';
+$_MODULE['<{paymos}prestashop>config_status_5b70762e5e171e87bae9df4d09c3b215'] = 'Paymos registered this Webhook URL automatically for the selected project. The Reconcile cron URL is an optional safety net for missed callbacks — schedule it (e.g. hourly) from your host.';
+$_MODULE['<{paymos}prestashop>config_status_656a6828d7ef1bb791e42087c4b5ee6e'] = 'API key';
+$_MODULE['<{paymos}prestashop>config_status_6dde4cb5c8b3b8925969f1da80b53583'] = 'Active mode';
+$_MODULE['<{paymos}prestashop>config_status_7b277018e43d41bc445731092b91547d'] = 'Not connected';
+$_MODULE['<{paymos}prestashop>config_status_9e727fdd3aec8274f46685441900280d'] = 'Project';
+$_MODULE['<{paymos}prestashop>config_status_d7f6996a8c1e22bef502865739eec2cb'] = 'Open the intended project in Paymos, then click Connect Paymos above and approve this store. Sandbox and Live credentials are delivered once, encrypted in this installation, and never entered manually.';
+$_MODULE['<{paymos}prestashop>config_status_e3e6f5dab7f265fc3517f4885ac0b376'] = 'Connected securely';
+$_MODULE['<{paymos}prestashop>config_status_f1cde06b53c1881b0831ee789f911b60'] = 'Reconcile cron URL';
+$_MODULE['<{paymos}prestashop>payment_options_8d66211b3da1030e568ac8a4737bd64b'] = 'Pay in USDT or USDC across 13 networks. You will be redirected to the secure Paymos checkout to complete your payment.';
+$_MODULE['<{paymos}prestashop>paymos_10b54f9b45df616ebd6668171e6c2c54'] = 'Your Paymos payment is being verified. This order will update automatically once the payment is confirmed on-chain.';
+$_MODULE['<{paymos}prestashop>paymos_2652eec977dcb2a5aea85f5bec235b05'] = 'Sandbox';
+$_MODULE['<{paymos}prestashop>paymos_31f7b3073a3874c1d83eb15b16611a9c'] = 'Accept USDT and USDC at checkout. Funds settle straight to your wallet — no chargebacks, no card rails.';
+$_MODULE['<{paymos}prestashop>paymos_3754b8e90822cfa8f1db514fb9e16c3c'] = 'Select a valid mode (Sandbox or Live).';
+$_MODULE['<{paymos}prestashop>paymos_576efee13127ba0ce0c01db6786f3dd4'] = 'Connect this shop to the project currently selected in Paymos. Official packages contain no merchant secrets.';
+$_MODULE['<{paymos}prestashop>paymos_650be61892bf690026089544abbd9d26'] = 'Mode';
+$_MODULE['<{paymos}prestashop>paymos_938ebbf2c66a9f4a6308708c65525494'] = 'Are you sure you want to uninstall Paymos? Your existing orders keep their history.';
+$_MODULE['<{paymos}prestashop>paymos_955ad3298db330b5ee880c2c9e6f23a0'] = 'Live';
+$_MODULE['<{paymos}prestashop>paymos_a196cee816955854d7660e7cab2cb8a0'] = 'Pay with stablecoins (USDT / USDC)';
+$_MODULE['<{paymos}prestashop>paymos_a53e73bd44d2beba4a775bcb951cd9e1'] = 'Paymos settings';
+$_MODULE['<{paymos}prestashop>paymos_c9cc8cce247e49bae79f15173ce97354'] = 'Save';
+$_MODULE['<{paymos}prestashop>paymos_d9dcc28576db8073aac164a002d716da'] = 'Paymos';
+$_MODULE['<{paymos}prestashop>paymos_f38f5974cdc23279ffe6d203641a8bdf'] = 'Settings updated.';
+$_MODULE['<{paymos}prestashop>pending_0ace0ad2bd7227de17d215484f304b0f'] = 'Your payment is being processed';
+$_MODULE['<{paymos}prestashop>pending_0b3b3212253982d48e0c6f16d477f684'] = 'View my orders';
+$_MODULE['<{paymos}prestashop>pending_13ba9cb83b1d0f383d8dd377e60f309a'] = 'Did you close the payment page too soon? You can finish paying this order securely.';
+$_MODULE['<{paymos}prestashop>pending_2bacb53089fec486bf8f97a7c0aecba9'] = 'We are confirming your Paymos payment on-chain. This page does not need to stay open — your order will update automatically as soon as the payment is confirmed.';
+$_MODULE['<{paymos}prestashop>pending_3ef8462276d0622307498c2dedeaea14'] = 'We could not start your payment';
+$_MODULE['<{paymos}prestashop>pending_945a9d7b3bff7232fdb7f019814cad5f'] = 'Continue payment';
+$_MODULE['<{paymos}prestashop>pending_b913dabf84a2fbeb711e6873210228b7'] = 'Order reference:';
+$_MODULE['<{paymos}prestashop>pending_d4e101c14e8f8e2c3701d8fc67c4291d'] = 'Something went wrong while opening the Paymos checkout, so this order was not charged. Please return to checkout and try again, or choose another payment method.';
