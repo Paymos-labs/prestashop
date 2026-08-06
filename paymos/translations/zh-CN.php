@@ -1,0 +1,36 @@
+<?php
+
+global $_MODULE;
+$_MODULE = array();
+$_MODULE['<{paymos}prestashop>config_status_0b8764d3dc1a8f0ba45f7ab682e65766'] = 'Webhook URL';
+$_MODULE['<{paymos}prestashop>config_status_2841f066e0cfa09453b4b9251261d09a'] = 'Paymos 连接';
+$_MODULE['<{paymos}prestashop>config_status_5b70762e5e171e87bae9df4d09c3b215'] = 'Paymos 已为所选项目自动注册此 Webhook URL。对账 cron URL 是防止漏收回调的可选兜底——请在你的主机上定时运行（例如每小时一次）。';
+$_MODULE['<{paymos}prestashop>config_status_656a6828d7ef1bb791e42087c4b5ee6e'] = 'API 密钥';
+$_MODULE['<{paymos}prestashop>config_status_6dde4cb5c8b3b8925969f1da80b53583'] = '当前模式';
+$_MODULE['<{paymos}prestashop>config_status_7b277018e43d41bc445731092b91547d'] = '未连接';
+$_MODULE['<{paymos}prestashop>config_status_9e727fdd3aec8274f46685441900280d'] = '项目';
+$_MODULE['<{paymos}prestashop>config_status_d7f6996a8c1e22bef502865739eec2cb'] = '在 Paymos 中打开目标项目，然后点击上方的「连接 Paymos」并批准本商店。沙盒和正式模式的密钥只下发一次，在本安装中加密存储，绝不手动填写。';
+$_MODULE['<{paymos}prestashop>config_status_e3e6f5dab7f265fc3517f4885ac0b376'] = '已安全连接';
+$_MODULE['<{paymos}prestashop>config_status_f1cde06b53c1881b0831ee789f911b60'] = '对账 cron URL';
+$_MODULE['<{paymos}prestashop>payment_options_8d66211b3da1030e568ac8a4737bd64b'] = '可用 USDT 或 USDC 在 13 条网络中付款。将跳转到 Paymos 安全收银台完成付款。';
+$_MODULE['<{paymos}prestashop>paymos_10b54f9b45df616ebd6668171e6c2c54'] = '你的 Paymos 付款正在核验中。付款在链上确认后，订单会自动更新。';
+$_MODULE['<{paymos}prestashop>paymos_2652eec977dcb2a5aea85f5bec235b05'] = '沙盒';
+$_MODULE['<{paymos}prestashop>paymos_31f7b3073a3874c1d83eb15b16611a9c'] = '在收银台接收 USDT 和 USDC。资金直接结算到你的钱包——没有拒付，不走卡组织通道。';
+$_MODULE['<{paymos}prestashop>paymos_3754b8e90822cfa8f1db514fb9e16c3c'] = '请选择有效的模式（沙盒或正式）。';
+$_MODULE['<{paymos}prestashop>paymos_576efee13127ba0ce0c01db6786f3dd4'] = '将本商店连接到 Paymos 中当前选中的项目。官方安装包不包含任何商户密钥。';
+$_MODULE['<{paymos}prestashop>paymos_650be61892bf690026089544abbd9d26'] = '模式';
+$_MODULE['<{paymos}prestashop>paymos_938ebbf2c66a9f4a6308708c65525494'] = '确定要卸载 Paymos 吗？现有订单的历史记录会保留。';
+$_MODULE['<{paymos}prestashop>paymos_955ad3298db330b5ee880c2c9e6f23a0'] = '正式';
+$_MODULE['<{paymos}prestashop>paymos_a196cee816955854d7660e7cab2cb8a0'] = '用稳定币付款（USDT / USDC）';
+$_MODULE['<{paymos}prestashop>paymos_a53e73bd44d2beba4a775bcb951cd9e1'] = 'Paymos 设置';
+$_MODULE['<{paymos}prestashop>paymos_c9cc8cce247e49bae79f15173ce97354'] = '保存';
+$_MODULE['<{paymos}prestashop>paymos_d9dcc28576db8073aac164a002d716da'] = 'Paymos';
+$_MODULE['<{paymos}prestashop>paymos_f38f5974cdc23279ffe6d203641a8bdf'] = '设置已更新。';
+$_MODULE['<{paymos}prestashop>pending_0ace0ad2bd7227de17d215484f304b0f'] = '付款正在处理中';
+$_MODULE['<{paymos}prestashop>pending_0b3b3212253982d48e0c6f16d477f684'] = '查看我的订单';
+$_MODULE['<{paymos}prestashop>pending_13ba9cb83b1d0f383d8dd377e60f309a'] = '过早关闭了付款页面？你可以安全地继续完成这笔订单的付款。';
+$_MODULE['<{paymos}prestashop>pending_2bacb53089fec486bf8f97a7c0aecba9'] = '我们正在链上确认你的 Paymos 付款。此页面无需保持打开——付款确认后订单会自动更新。';
+$_MODULE['<{paymos}prestashop>pending_3ef8462276d0622307498c2dedeaea14'] = '无法发起付款';
+$_MODULE['<{paymos}prestashop>pending_945a9d7b3bff7232fdb7f019814cad5f'] = '继续付款';
+$_MODULE['<{paymos}prestashop>pending_b913dabf84a2fbeb711e6873210228b7'] = '订单编号：';
+$_MODULE['<{paymos}prestashop>pending_d4e101c14e8f8e2c3701d8fc67c4291d'] = '打开 Paymos 收银台时出现问题，本订单未被扣款。请返回收银台重试，或选择其他支付方式。';

@@ -1,0 +1,36 @@
+<?php
+
+global $_MODULE;
+$_MODULE = array();
+$_MODULE['<{paymos}prestashop>config_status_0b8764d3dc1a8f0ba45f7ab682e65766'] = 'URL del webhook';
+$_MODULE['<{paymos}prestashop>config_status_2841f066e0cfa09453b4b9251261d09a'] = 'Conexión con Paymos';
+$_MODULE['<{paymos}prestashop>config_status_5b70762e5e171e87bae9df4d09c3b215'] = 'Paymos registró esta URL del webhook automáticamente para el proyecto seleccionado. La URL de conciliación por cron es una red de seguridad opcional para las llamadas que se pierdan: prográmala (por ejemplo, cada hora) desde tu alojamiento.';
+$_MODULE['<{paymos}prestashop>config_status_656a6828d7ef1bb791e42087c4b5ee6e'] = 'Clave de API';
+$_MODULE['<{paymos}prestashop>config_status_6dde4cb5c8b3b8925969f1da80b53583'] = 'Modo activo';
+$_MODULE['<{paymos}prestashop>config_status_7b277018e43d41bc445731092b91547d'] = 'Sin conectar';
+$_MODULE['<{paymos}prestashop>config_status_9e727fdd3aec8274f46685441900280d'] = 'Proyecto';
+$_MODULE['<{paymos}prestashop>config_status_d7f6996a8c1e22bef502865739eec2cb'] = 'Abre en Paymos el proyecto que quieras, pulsa Connect Paymos arriba y aprueba esta tienda. Las credenciales de Sandbox y Live se entregan una sola vez, quedan cifradas en esta instalación y nunca se escriben a mano.';
+$_MODULE['<{paymos}prestashop>config_status_e3e6f5dab7f265fc3517f4885ac0b376'] = 'Conectada de forma segura';
+$_MODULE['<{paymos}prestashop>config_status_f1cde06b53c1881b0831ee789f911b60'] = 'URL de conciliación por cron';
+$_MODULE['<{paymos}prestashop>payment_options_8d66211b3da1030e568ac8a4737bd64b'] = 'Paga en USDT o USDC en 13 redes. Te llevaremos a la página de pago segura de Paymos para completar la operación.';
+$_MODULE['<{paymos}prestashop>paymos_10b54f9b45df616ebd6668171e6c2c54'] = 'Estamos verificando tu pago con Paymos. Este pedido se actualizará solo en cuanto el pago se confirme en la cadena.';
+$_MODULE['<{paymos}prestashop>paymos_2652eec977dcb2a5aea85f5bec235b05'] = 'Sandbox';
+$_MODULE['<{paymos}prestashop>paymos_31f7b3073a3874c1d83eb15b16611a9c'] = 'Acepta USDT y USDC al pagar. El dinero se liquida en el mismo activo, sin contracargos y sin pasar por las redes de tarjetas.';
+$_MODULE['<{paymos}prestashop>paymos_3754b8e90822cfa8f1db514fb9e16c3c'] = 'Elige un modo válido (Sandbox o Live).';
+$_MODULE['<{paymos}prestashop>paymos_576efee13127ba0ce0c01db6786f3dd4'] = 'Conecta esta tienda con el proyecto que tengas seleccionado en Paymos. Los paquetes oficiales no contienen secretos del comercio.';
+$_MODULE['<{paymos}prestashop>paymos_650be61892bf690026089544abbd9d26'] = 'Modo';
+$_MODULE['<{paymos}prestashop>paymos_938ebbf2c66a9f4a6308708c65525494'] = '¿Seguro que quieres desinstalar Paymos? Tus pedidos actuales conservan su historial.';
+$_MODULE['<{paymos}prestashop>paymos_955ad3298db330b5ee880c2c9e6f23a0'] = 'Live';
+$_MODULE['<{paymos}prestashop>paymos_a196cee816955854d7660e7cab2cb8a0'] = 'Pagar con stablecoins (USDT / USDC)';
+$_MODULE['<{paymos}prestashop>paymos_a53e73bd44d2beba4a775bcb951cd9e1'] = 'Configuración de Paymos';
+$_MODULE['<{paymos}prestashop>paymos_c9cc8cce247e49bae79f15173ce97354'] = 'Guardar';
+$_MODULE['<{paymos}prestashop>paymos_d9dcc28576db8073aac164a002d716da'] = 'Paymos';
+$_MODULE['<{paymos}prestashop>paymos_f38f5974cdc23279ffe6d203641a8bdf'] = 'Configuración guardada.';
+$_MODULE['<{paymos}prestashop>pending_0ace0ad2bd7227de17d215484f304b0f'] = 'Estamos procesando tu pago';
+$_MODULE['<{paymos}prestashop>pending_0b3b3212253982d48e0c6f16d477f684'] = 'Ver mis pedidos';
+$_MODULE['<{paymos}prestashop>pending_13ba9cb83b1d0f383d8dd377e60f309a'] = '¿Cerraste la página de pago antes de tiempo? Puedes terminar de pagar este pedido de forma segura.';
+$_MODULE['<{paymos}prestashop>pending_2bacb53089fec486bf8f97a7c0aecba9'] = 'Estamos confirmando tu pago con Paymos en la cadena. No hace falta dejar esta página abierta: tu pedido se actualizará solo en cuanto el pago se confirme.';
+$_MODULE['<{paymos}prestashop>pending_3ef8462276d0622307498c2dedeaea14'] = 'No pudimos iniciar tu pago';
+$_MODULE['<{paymos}prestashop>pending_945a9d7b3bff7232fdb7f019814cad5f'] = 'Continuar con el pago';
+$_MODULE['<{paymos}prestashop>pending_b913dabf84a2fbeb711e6873210228b7'] = 'Referencia del pedido:';
+$_MODULE['<{paymos}prestashop>pending_d4e101c14e8f8e2c3701d8fc67c4291d'] = 'Algo falló al abrir la página de pago de Paymos, así que este pedido no se cobró. Vuelve al pago e inténtalo de nuevo, o elige otro método.';

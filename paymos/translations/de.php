@@ -1,0 +1,36 @@
+<?php
+
+global $_MODULE;
+$_MODULE = array();
+$_MODULE['<{paymos}prestashop>config_status_0b8764d3dc1a8f0ba45f7ab682e65766'] = 'Webhook-URL';
+$_MODULE['<{paymos}prestashop>config_status_2841f066e0cfa09453b4b9251261d09a'] = 'Paymos-Verbindung';
+$_MODULE['<{paymos}prestashop>config_status_5b70762e5e171e87bae9df4d09c3b215'] = 'Paymos hat diese Webhook-URL für das gewählte Projekt automatisch eingetragen. Die Abgleich-Cron-URL ist ein optionales Sicherheitsnetz für verpasste Callbacks — planen Sie sie (etwa stündlich) bei Ihrem Hoster ein.';
+$_MODULE['<{paymos}prestashop>config_status_656a6828d7ef1bb791e42087c4b5ee6e'] = 'API-Schlüssel';
+$_MODULE['<{paymos}prestashop>config_status_6dde4cb5c8b3b8925969f1da80b53583'] = 'Aktiver Modus';
+$_MODULE['<{paymos}prestashop>config_status_7b277018e43d41bc445731092b91547d'] = 'Nicht verbunden';
+$_MODULE['<{paymos}prestashop>config_status_9e727fdd3aec8274f46685441900280d'] = 'Projekt';
+$_MODULE['<{paymos}prestashop>config_status_d7f6996a8c1e22bef502865739eec2cb'] = 'Öffnen Sie in Paymos das gewünschte Projekt, klicken Sie oben auf Connect Paymos und bestätigen Sie diesen Shop. Die Zugangsdaten für Sandbox und Live werden einmalig übertragen, in dieser Installation verschlüsselt abgelegt und nie von Hand eingegeben.';
+$_MODULE['<{paymos}prestashop>config_status_e3e6f5dab7f265fc3517f4885ac0b376'] = 'Sicher verbunden';
+$_MODULE['<{paymos}prestashop>config_status_f1cde06b53c1881b0831ee789f911b60'] = 'Abgleich-Cron-URL';
+$_MODULE['<{paymos}prestashop>payment_options_8d66211b3da1030e568ac8a4737bd64b'] = 'Zahlen Sie in USDT oder USDC über 13 Netzwerke. Zum Abschluss werden Sie zum sicheren Paymos-Checkout weitergeleitet.';
+$_MODULE['<{paymos}prestashop>paymos_10b54f9b45df616ebd6668171e6c2c54'] = 'Ihre Paymos-Zahlung wird geprüft. Diese Bestellung aktualisiert sich von selbst, sobald die Zahlung on-chain bestätigt ist.';
+$_MODULE['<{paymos}prestashop>paymos_2652eec977dcb2a5aea85f5bec235b05'] = 'Sandbox';
+$_MODULE['<{paymos}prestashop>paymos_31f7b3073a3874c1d83eb15b16611a9c'] = 'Nehmen Sie USDT und USDC im Checkout an. Das Geld landet direkt in Ihrer Wallet — keine Rückbuchungen, keine Kartenschienen.';
+$_MODULE['<{paymos}prestashop>paymos_3754b8e90822cfa8f1db514fb9e16c3c'] = 'Wählen Sie einen gültigen Modus (Sandbox oder Live).';
+$_MODULE['<{paymos}prestashop>paymos_576efee13127ba0ce0c01db6786f3dd4'] = 'Verbinden Sie diesen Shop mit dem Projekt, das gerade in Paymos ausgewählt ist. Offizielle Pakete enthalten keine Händlergeheimnisse.';
+$_MODULE['<{paymos}prestashop>paymos_650be61892bf690026089544abbd9d26'] = 'Modus';
+$_MODULE['<{paymos}prestashop>paymos_938ebbf2c66a9f4a6308708c65525494'] = 'Möchten Sie Paymos wirklich deinstallieren? Ihre bestehenden Bestellungen behalten ihre Historie.';
+$_MODULE['<{paymos}prestashop>paymos_955ad3298db330b5ee880c2c9e6f23a0'] = 'Live';
+$_MODULE['<{paymos}prestashop>paymos_a196cee816955854d7660e7cab2cb8a0'] = 'Mit Stablecoins bezahlen (USDT / USDC)';
+$_MODULE['<{paymos}prestashop>paymos_a53e73bd44d2beba4a775bcb951cd9e1'] = 'Paymos-Einstellungen';
+$_MODULE['<{paymos}prestashop>paymos_c9cc8cce247e49bae79f15173ce97354'] = 'Speichern';
+$_MODULE['<{paymos}prestashop>paymos_d9dcc28576db8073aac164a002d716da'] = 'Paymos';
+$_MODULE['<{paymos}prestashop>paymos_f38f5974cdc23279ffe6d203641a8bdf'] = 'Einstellungen gespeichert.';
+$_MODULE['<{paymos}prestashop>pending_0ace0ad2bd7227de17d215484f304b0f'] = 'Ihre Zahlung wird verarbeitet';
+$_MODULE['<{paymos}prestashop>pending_0b3b3212253982d48e0c6f16d477f684'] = 'Meine Bestellungen ansehen';
+$_MODULE['<{paymos}prestashop>pending_13ba9cb83b1d0f383d8dd377e60f309a'] = 'Haben Sie die Zahlungsseite zu früh geschlossen? Sie können diese Bestellung sicher zu Ende bezahlen.';
+$_MODULE['<{paymos}prestashop>pending_2bacb53089fec486bf8f97a7c0aecba9'] = 'Wir bestätigen Ihre Paymos-Zahlung on-chain. Diese Seite muss nicht geöffnet bleiben — Ihre Bestellung aktualisiert sich von selbst, sobald die Zahlung bestätigt ist.';
+$_MODULE['<{paymos}prestashop>pending_3ef8462276d0622307498c2dedeaea14'] = 'Ihre Zahlung konnte nicht gestartet werden';
+$_MODULE['<{paymos}prestashop>pending_945a9d7b3bff7232fdb7f019814cad5f'] = 'Zahlung fortsetzen';
+$_MODULE['<{paymos}prestashop>pending_b913dabf84a2fbeb711e6873210228b7'] = 'Bestellreferenz:';
+$_MODULE['<{paymos}prestashop>pending_d4e101c14e8f8e2c3701d8fc67c4291d'] = 'Beim Öffnen des Paymos-Checkouts ist etwas schiefgelaufen, deshalb wurde diese Bestellung nicht belastet. Kehren Sie zum Checkout zurück und versuchen Sie es erneut, oder wählen Sie eine andere Zahlungsart.';
