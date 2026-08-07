@@ -61,7 +61,7 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.3.1';
+        $this->version = '1.3.2';
         $this->author = 'Paymos';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = array('min' => '1.7.6.0', 'max' => _PS_VERSION_);
@@ -387,19 +387,41 @@ class Paymos extends PaymentModule
             . '<p>Connects this exact shop URL to the project currently selected in Paymos.</p>'
             . '<button type="button" class="btn btn-primary" id="paymos-connect-button">Connect Paymos</button>'
             . '<p id="paymos-connect-status" aria-live="polite"></p></div>'
-            . '<script>(function(){var b=document.getElementById("paymos-connect-button"),s=document.getElementById("paymos-connect-status");'
-            . 'if(!b)return;b.addEventListener("click",function(){b.disabled=true;s.textContent="Starting secure connection…";'
-            . 'fetch(' . json_encode($start) . ',{method:"POST",credentials:"same-origin"}).then(function(r){return r.json();}).then(function(j){'
-            . 'if(j.error)throw new Error(j.error);window.open(j.verification_url,"_blank","noopener,noreferrer");s.textContent="Waiting for approval. Code: "+j.user_code;'
+            . '<script>(function(){var b=document.getElementById("paymos-connect-button"),s=document.getElementById("paymos-connect-status"),manual=false;'
+            /* The tab is opened synchronously inside the click: browsers only honour
+               window.open for a few seconds after the gesture, so opening it once the
+               start request resolves is blocked on slow connections. No feature string —
+               any feature string asks for a popup, which blockers reject far more often. */
+            . 'if(!b)return;b.addEventListener("click",function(){b.disabled=true;manual=false;s.textContent="Starting secure connection…";'
+            . 'var t=window.open("","_blank");if(t){try{t.opener=null;}catch(e){}}'
+            . 'var d=new URLSearchParams({paymos_return_url:location.href});'
+            . 'fetch(' . json_encode($start) . ',{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:d.toString()}).then(function(r){return r.json();}).then(function(j){'
+            . 'if(j.error)throw new Error(j.error);'
+            . 'if(t&&!t.closed){t.location=j.verification_url;s.textContent="Waiting for approval. Code: "+j.user_code;}'
+            . 'else{manual=true;s.textContent="";var a=document.createElement("a");a.href=j.verification_url;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Open the approval page";'
+            . 's.appendChild(document.createTextNode("Your browser blocked the approval tab. "));s.appendChild(a);s.appendChild(document.createTextNode(" Code: "+j.user_code));}'
             . 'var i=Math.max(1,Number(j.interval||5))*1000;setTimeout(function p(){fetch(' . json_encode($poll) . ',{method:"POST",credentials:"same-origin"})'
             . '.then(function(r){return r.json();}).then(function(x){if(x.error)throw new Error(x.error);if(x.status==="connected"){location.reload();return;}setTimeout(p,x.status==="slow_down"?i+5000:i);})'
-            . '.catch(function(e){s.textContent=e.message;b.disabled=false;});},i);}).catch(function(e){s.textContent=e.message;b.disabled=false;});});})();</script>';
+            . '.catch(function(e){if(!manual)s.textContent=e.message;b.disabled=false;});},i);})'
+            . '.catch(function(e){if(t&&!t.closed)t.close();s.textContent=e.message;b.disabled=false;});});})();</script>';
     }
 
     private function startConnection()
     {
+        // PrestaShop reports its own scheme from PS_SSL_ENABLED, not from the request, so
+        // a shop that is HTTPS to the outside world still hands us an http:// URL while
+        // that setting is off — common behind a reverse proxy or tunnel. The SDK then
+        // refuses the address with a generic "HTTPS store URL is required", which reads
+        // as a Paymos fault and names nothing the merchant can act on.
+        if (stripos($this->sourceUrl(), 'https://') !== 0) {
+            return array('error' => $this->l('Paymos needs your shop URL to be HTTPS. PrestaShop is reporting an http:// address because SSL is disabled in Shop Parameters → General. Turn on both SSL settings there, then connect again.'));
+        }
+
         try {
-            $state = (new \Paymos\Connect\DeviceConnectClient('https://app.paymos.io'))->start('prestashop', $this->sourceUrl());
+            // The admin page posts its own URL so approval can return the merchant to it.
+            // Paymos drops it unless it shares an origin with the shop URL.
+            $returnUrl = isset($_POST['paymos_return_url']) ? (string) $_POST['paymos_return_url'] : '';
+            $state = (new \Paymos\Connect\DeviceConnectClient('https://app.paymos.io'))->start('prestashop', $this->sourceUrl(), $returnUrl);
             $this->saveProtected('PAYMOS_CONNECT_STATE_V1', array(
                 'schema' => 1,
                 'expires_at' => time() + (int) $state['expires_in'],
