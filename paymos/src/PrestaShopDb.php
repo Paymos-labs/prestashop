@@ -53,11 +53,19 @@ final class PrestaShopDb implements DbInterface
         return is_array($rows) ? $rows : array();
     }
 
+    /**
+     * Duplicate-key inserts must report false, never throw: that is how the webhook
+     * event store recognises a redelivery. PrestaShop 8 raises a plain
+     * PrestaShopException here rather than the PrestaShopDatabaseException one would
+     * expect, so catching only the latter let every repeated webhook escape as a fatal
+     * — a 500 that Paymos then retries forever. PrestaShopDatabaseException extends
+     * PrestaShopException, so the wider catch covers both.
+     */
     public function insert($table, array $row)
     {
         try {
             return (bool) $this->db->insert($table, $row, false, true, \Db::INSERT, false);
-        } catch (\PrestaShopDatabaseException $e) {
+        } catch (\PrestaShopException $e) {
             if ((int) $this->db->getNumberError() === self::ERR_DUP_ENTRY) {
                 return false;
             }
