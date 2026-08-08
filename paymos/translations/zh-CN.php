@@ -2,7 +2,7 @@
 
 global $_MODULE;
 $_MODULE = array();
-$_MODULE['<{paymos}prestashop>config_status_0b8764d3dc1a8f0ba45f7ab682e65766'] = 'Webhook URL';
+$_MODULE['<{paymos}prestashop>config_status_0b8764d3dc1a8f0ba45f7ab682e65766'] = 'Webhook 地址';
 $_MODULE['<{paymos}prestashop>config_status_2841f066e0cfa09453b4b9251261d09a'] = 'Paymos 连接';
 $_MODULE['<{paymos}prestashop>config_status_5b70762e5e171e87bae9df4d09c3b215'] = 'Paymos 已为所选项目自动注册此 Webhook URL。对账 cron URL 是防止漏收回调的可选兜底——请在你的主机上定时运行（例如每小时一次）。';
 $_MODULE['<{paymos}prestashop>config_status_656a6828d7ef1bb791e42087c4b5ee6e'] = 'API 密钥';
