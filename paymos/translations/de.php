@@ -19,6 +19,7 @@ $_MODULE['<{paymos}prestashop>paymos_31f7b3073a3874c1d83eb15b16611a9c'] = 'Nehme
 $_MODULE['<{paymos}prestashop>paymos_3754b8e90822cfa8f1db514fb9e16c3c'] = 'Wählen Sie einen gültigen Modus (Sandbox oder Live).';
 $_MODULE['<{paymos}prestashop>paymos_576efee13127ba0ce0c01db6786f3dd4'] = 'Verbinden Sie diesen Shop mit dem Projekt, das gerade in Paymos ausgewählt ist. Offizielle Pakete enthalten keine Händlergeheimnisse.';
 $_MODULE['<{paymos}prestashop>paymos_650be61892bf690026089544abbd9d26'] = 'Modus';
+$_MODULE['<{paymos}prestashop>paymos_91533e3b193fd91d05e6d153dd3d293e'] = 'Paymos benötigt eine HTTPS-Adresse für Ihren Shop. PrestaShop meldet eine http://-Adresse, weil SSL in den allgemeinen Shop-Parametern (Shop Parameters → General) deaktiviert ist. Schalten Sie dort beide SSL-Einstellungen ein und verbinden Sie sich erneut.';
 $_MODULE['<{paymos}prestashop>paymos_938ebbf2c66a9f4a6308708c65525494'] = 'Möchten Sie Paymos wirklich deinstallieren? Ihre bestehenden Bestellungen behalten ihre Historie.';
 $_MODULE['<{paymos}prestashop>paymos_955ad3298db330b5ee880c2c9e6f23a0'] = 'Live';
 $_MODULE['<{paymos}prestashop>paymos_a196cee816955854d7660e7cab2cb8a0'] = 'Mit Stablecoins bezahlen (USDT / USDC)';
