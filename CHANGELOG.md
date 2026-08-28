@@ -6,6 +6,23 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 The public release history also lives at [paymos.io/changelog](https://paymos.io/changelog).
 
+## [Unreleased]
+
+## [1.3.7] - 2026-08-28
+
+- release: the changelog rot had a cause, and it was not the one I named
+- audit: the shipped plugin and SDK docs described a product we stopped shipping
+- docs(plugins): eight README stubs become the front pages they already were
+- docs(plugins): the changelogs stopped in June and the audit never reached them
+- Merge remote-tracking branch 'origin/main' into codex/payment-channels
+- Merge main into codex/payment-channels
+- chore: bundle Paymos PHP SDK v1.4.0
+- chore: rebuild canonical CMS package
+
+### Fixed
+- An underpaid invoice was announced as "confirming"; it now names the amount
+  still outstanding.
+
 ## [1.3.6] - 2026-08-08
 
 - fix(plugins): make the six shipped locales actually reach the merchant
