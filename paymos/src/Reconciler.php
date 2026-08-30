@@ -26,7 +26,7 @@ final class Reconciler
     /** @var callable|null */
     private $clientFactory;
 
-    public function __construct(InvoiceStoreInterface $store, PrestaShopAdapterInterface $prestashop, callable $clientFactory = null)
+    public function __construct(InvoiceStoreInterface $store, PrestaShopAdapterInterface $prestashop, ?callable $clientFactory = null)
     {
         $this->store = $store;
         $this->prestashop = $prestashop;
