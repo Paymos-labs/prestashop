@@ -61,10 +61,12 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.3.8';
+        $this->version = '1.3.9';
         $this->author = 'Paymos';
         $this->need_instance = 0;
-        $this->ps_versions_compliancy = array('min' => '1.7.6.0', 'max' => _PS_VERSION_);
+        // A fixed maximum: the Addons validator rejects 'compatible with whatever is
+        // installed' (_PS_VERSION_), and every declared version is a promise to test it.
+        $this->ps_versions_compliancy = array('min' => '1.7.6.0', 'max' => '8.99.99');
         $this->controllers = array('validation', 'callback', 'pending', 'reconcile');
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';

@@ -1,8 +1,25 @@
 <?php
 
 declare(strict_types=1);
+require __DIR__ . '/stubs/prestashop.php';
+
+// PrestaShop defines this before any module file loads.
+if (!defined('_PS_VERSION_')) {
+    define('_PS_VERSION_', '8.2.1');
+}
 
 define('PAYMOS_PRESTASHOP_PLUGIN_DIR', dirname(__DIR__) . DIRECTORY_SEPARATOR);
+
+// Any deprecation, notice or warning inside plugin code must fail the run:
+// platform installers (Magento DI compile above all) escalate PHP 8.4+
+// deprecations to fatals, and a silent one here is how rejections slip through.
+error_reporting(E_ALL);
+set_error_handler(static function ($severity, $message, $file, $line) {
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
 define('PAYMOS_PRESTASHOP_MODULE_DIR', PAYMOS_PRESTASHOP_PLUGIN_DIR . 'paymos' . DIRECTORY_SEPARATOR);
 
 spl_autoload_register(static function ($class) {
