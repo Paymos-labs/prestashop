@@ -52,7 +52,7 @@ final class CallbackProcessor
         PrestaShopAdapterInterface $prestashop,
         InvoiceStoreInterface $invoiceStore,
         EventStoreInterface $eventStore,
-        callable $clientFactory = null
+        ?callable $clientFactory = null
     ) {
         $this->prestashop = $prestashop;
         $this->invoiceStore = $invoiceStore;

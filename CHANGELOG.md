@@ -8,6 +8,15 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.3.8] - 2026-08-30
+
+- fix(plugins): implicitly nullable factory params break Magento DI compile on PHP 8.5
+- chore: rebuild canonical CMS package
+
+### Fixed
+- An underpaid invoice was announced as "confirming"; it now names the amount
+  still outstanding.
+
 ## [1.3.7] - 2026-08-28
 
 - release: the changelog rot had a cause, and it was not the one I named
