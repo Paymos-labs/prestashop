@@ -8,6 +8,14 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.3.10] - 2026-09-17
+
+- chore: bundle Paymos PHP SDK v1.4.1
+
+### Fixed
+- An underpaid invoice was announced as "confirming"; it now names the amount
+  still outstanding.
+
 ## [1.3.9] - 2026-08-30
 
 - fix(plugins): phase 4 debts — no installs in the wild, code lands now
