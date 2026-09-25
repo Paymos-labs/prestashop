@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PaymosPrestaShop;
 
-use Paymos\Webhook\EventStoreInterface;
+use Paymos\Webhook\CommitAwareEventStoreInterface;
 
 /**
  * Race-proof webhook dedup backed by `paymos_webhook_event` (event_id PRIMARY
@@ -18,7 +18,7 @@ use Paymos\Webhook\EventStoreInterface;
  * the order mutation succeeds, while release() deletes it so a failed callback is
  * retried by the server.
  */
-final class EventStore implements EventStoreInterface
+final class EventStore implements CommitAwareEventStoreInterface
 {
     /** Reservation window before commit(); a crashed callback frees the id quickly. */
     private const RESERVATION_TTL_SECONDS = 300;
@@ -59,6 +59,26 @@ final class EventStore implements EventStoreInterface
         $this->pendingTtlSeconds = (int) $ttlSeconds;
 
         return true;
+    }
+
+    /**
+     * Whether the event was processed and committed — as opposed to merely
+     * locked by a delivery that has not finished (BUG-103: that one must be
+     * answered non-2xx, or a retry arriving mid-processing marks it delivered).
+     * A committed row lives past its reservation; a lock does not.
+     */
+    public function isCommitted($eventId)
+    {
+        $row = $this->db->getRow('SELECT `expires_at`, `created_at` FROM `' . Migrations::table(Migrations::EVENTS_TABLE) . '`
+            WHERE `event_id` = \'' . $this->db->escape((string) $eventId) . '\'');
+        if (!is_array($row)) {
+            return false;
+        }
+
+        $expiresAt = isset($row['expires_at']) ? (int) $row['expires_at'] : 0;
+        $createdAt = isset($row['created_at']) ? (int) $row['created_at'] : 0;
+
+        return $expiresAt > time() && $expiresAt > $createdAt + self::RESERVATION_TTL_SECONDS;
     }
 
     public function commit()

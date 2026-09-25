@@ -182,3 +182,41 @@ function test_prestashop_callback_ignores_non_invoice_events()
     assertSameValue(200, $result->statusCode(), 'non-invoice events are acknowledged with 200.');
     assertSameValue(0, count($adapter->transitions), 'non-invoice events must not mutate any order.');
 }
+
+function test_prestashop_callback_ignores_a_stale_event_after_a_final_status()
+{
+    // BUG-135: the invoice already ended underpaid (order in the failed state).
+    // A delayed underpaid_waiting must not move the order back to pending, nor
+    // overwrite the recorded final status.
+    $store = new InMemoryInvoiceStore();
+    $store->save(prestashop_snapshot(array('status' => 'underpaid')));
+    $adapter = new FakePrestaShopAdapter();
+
+    $body = json_encode(prestashop_invoice_event('evt_stale', 'invoice.underpaid_waiting', 'underpaid_waiting'));
+    $result = (new CallbackProcessor($adapter, $store, new InMemoryEventStore()))
+        ->handle($body, prestashop_signed_header('whsec_sandbox', $body, 1709000000), prestashop_settings(), 1709000000);
+
+    assertSameValue(200, $result->statusCode(), 'a stale event is acknowledged, not retried.');
+    assertSameValue(0, count($adapter->transitions), 'a stale event after a final status must not move the order.');
+    assertSameValue('underpaid', $store->findByExternalOrderId('ps_42_0')['status'], 'the final status must stay recorded.');
+}
+
+function test_prestashop_callback_answers_409_while_the_event_is_still_being_processed()
+{
+    // BUG-103: another delivery of this event holds the lock and has not
+    // finished. A 200 "duplicate" would mark it delivered — lost if that
+    // delivery then fails. Answer 409 and leave the lock alone.
+    $store = new InMemoryInvoiceStore();
+    $store->save(prestashop_snapshot());
+    $adapter = new FakePrestaShopAdapter();
+    $events = new InMemoryEventStore();
+    assertTrueValue($events->remember('evt_inflight', 604800), 'the first delivery holds the lock.');
+
+    $body = json_encode(prestashop_invoice_event('evt_inflight', 'invoice.paid', 'paid'));
+    $result = (new CallbackProcessor($adapter, $store, $events))
+        ->handle($body, prestashop_signed_header('whsec_sandbox', $body, 1709000000), prestashop_settings(), 1709000000);
+
+    assertSameValue(409, $result->statusCode(), 'an event still in flight must be answered non-2xx so the server retries.');
+    assertFalseValue($events->remember('evt_inflight', 604800), 'the retry must not release the lock the first delivery still holds.');
+    assertSameValue(0, count($adapter->transitions), 'nothing may be applied while the event is in flight.');
+}

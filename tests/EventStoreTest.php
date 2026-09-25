@@ -54,3 +54,24 @@ function test_prestashop_in_memory_event_store_matches_db_semantics()
     $store->release();
     assertTrueValue($store->remember('evt_mem', 3600), 'released id is retriable.');
 }
+
+function test_prestashop_event_store_tells_a_locked_event_from_a_committed_one()
+{
+    // BUG-103: remember() says "seen" for both; isCommitted() must not.
+    $db = new FakeDb();
+    $first = new EventStore($db);
+    assertTrueValue($first->remember('evt_db', 604800), 'first delivery takes the lock.');
+
+    $retry = new EventStore($db);
+    assertFalseValue($retry->remember('evt_db', 604800), 'a retry while the lock is held is not new.');
+    assertFalseValue($retry->isCommitted('evt_db'), 'a locked, uncommitted event is not committed.');
+
+    $first->commit();
+    assertTrueValue($retry->isCommitted('evt_db'), 'after commit the event is committed.');
+
+    $memory = new InMemoryEventStore();
+    $memory->remember('evt_mem', 604800);
+    assertFalseValue($memory->isCommitted('evt_mem'), 'in memory, locked only: not committed.');
+    $memory->commit();
+    assertTrueValue($memory->isCommitted('evt_mem'), 'in memory, committed.');
+}

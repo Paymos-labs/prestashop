@@ -6,6 +6,7 @@ namespace PaymosPrestaShop;
 
 use Paymos\Client;
 use Paymos\Exception\DuplicateEventException;
+use Paymos\Exception\EventInProgressException;
 use Paymos\Exception\SignatureMismatchException;
 use Paymos\Exception\TimestampSkewException;
 use Paymos\Plugin\InvoiceReverseVerifier;
@@ -87,6 +88,13 @@ final class CallbackProcessor
             $this->prestashop->log('Paymos duplicate webhook ignored.', array('duplicate' => true));
 
             return new CallbackResult(200, 'OK', true);
+        } catch (EventInProgressException $e) {
+            // Another delivery of this event holds the lock and has not finished.
+            // Not a duplicate: a 2xx would mark it delivered even if that delivery
+            // then fails. 409 makes the server retry; the lock is not ours to drop.
+            $this->prestashop->log('Paymos webhook is still being processed by another delivery.', array('in_progress' => true));
+
+            return new CallbackResult(409, 'In progress');
         } catch (SignatureMismatchException $e) {
             return new CallbackResult(401, 'Bad signature');
         } catch (TimestampSkewException $e) {
@@ -164,6 +172,20 @@ final class CallbackProcessor
             if (!$result->isVerified()) {
                 throw new \RuntimeException('Paymos reverse verification failed: ' . $result->reason());
             }
+        }
+
+        // Nothing leaves a final status on the server (Invoice.IsTerminal), so an
+        // event that arrives after one is an out-of-order redelivery. The mapper's
+        // paid guard only protects paid orders; a failed or cancelled one was
+        // moved back by a stale underpaid_waiting or confirming. The recorded
+        // invoice status decides, and it stays final.
+        if (StatusMapper::isFinalStatus(isset($row['status']) ? (string) $row['status'] : '')) {
+            $this->prestashop->log('Paymos ignored an invoice status that arrived after a final one.', array(
+                'invoice' => $event->invoiceId(),
+                'final_status' => (string) $row['status'],
+                'event_type' => $event->type(),
+            ));
+            return false;
         }
 
         $this->invoiceStore->updateStatus($event->invoiceId(), $event->status());

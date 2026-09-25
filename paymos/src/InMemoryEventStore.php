@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace PaymosPrestaShop;
 
-use Paymos\Webhook\EventStoreInterface;
+use Paymos\Webhook\CommitAwareEventStoreInterface;
 
 /**
  * In-memory dedup store for the reconcile path (where dedup is irrelevant) and
  * for tests. Mirrors the commit()/release() semantics of the DB EventStore.
  */
-final class InMemoryEventStore implements EventStoreInterface
+final class InMemoryEventStore implements CommitAwareEventStoreInterface
 {
     /** @var array<string, int> */
     private $events = array();
+
+    /** @var array<string, bool> */
+    private $committed = array();
 
     /** @var string */
     private $pendingEventId = '';
@@ -28,7 +31,7 @@ final class InMemoryEventStore implements EventStoreInterface
 
         foreach ($this->events as $stored => $expiresAt) {
             if ($expiresAt < $now) {
-                unset($this->events[$stored]);
+                unset($this->events[$stored], $this->committed[$stored]);
             }
         }
 
@@ -43,6 +46,11 @@ final class InMemoryEventStore implements EventStoreInterface
         return true;
     }
 
+    public function isCommitted($eventId)
+    {
+        return isset($this->committed[(string) $eventId]);
+    }
+
     public function commit()
     {
         if ($this->pendingEventId === '') {
@@ -50,6 +58,7 @@ final class InMemoryEventStore implements EventStoreInterface
         }
 
         $this->events[$this->pendingEventId] = time() + $this->pendingTtlSeconds;
+        $this->committed[$this->pendingEventId] = true;
         $this->pendingEventId = '';
         $this->pendingTtlSeconds = 0;
     }
