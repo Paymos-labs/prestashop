@@ -23,6 +23,7 @@ require_once __DIR__ . '/src/Autoloader.php';
 use PaymosPrestaShop\Config;
 use PaymosPrestaShop\Migrations;
 use PaymosPrestaShop\PrestaShopDb;
+use PaymosPrestaShop\Requirements;
 use PrestaShop\PrestaShop\Core\Payment\PaymentOption;
 
 class Paymos extends PaymentModule
@@ -61,12 +62,14 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.3.13';
+        $this->version = '1.3.14';
         $this->author = 'Paymos';
         $this->need_instance = 0;
         // A fixed maximum: the Addons validator rejects 'compatible with whatever is
         // installed' (_PS_VERSION_), and every declared version is a promise to test it.
-        $this->ps_versions_compliancy = array('min' => '1.7.6.0', 'max' => '8.99.99');
+        // The minimum is 1.7.8.0, the first PrestaShop that runs on PHP 7.4, the
+        // module's own floor (Requirements::PHP_MIN); 1.7.6 and 1.7.7 stop at 7.3.
+        $this->ps_versions_compliancy = array('min' => '1.7.8.0', 'max' => '8.99.99');
         $this->controllers = array('validation', 'callback', 'pending', 'reconcile');
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
@@ -81,6 +84,14 @@ class Paymos extends PaymentModule
 
     public function install()
     {
+        // PrestaShop core enforces ps_versions_compliancy, not the PHP version,
+        // and 1.7.8 still runs on PHP 7.1-7.3. Refuse before anything is written.
+        if (!Requirements::phpSupported(PHP_VERSION)) {
+            $this->_errors[] = $this->l('Paymos requires PHP 7.4 or later.');
+
+            return false;
+        }
+
         if (!parent::install()) {
             return false;
         }
