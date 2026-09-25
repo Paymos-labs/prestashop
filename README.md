@@ -12,7 +12,7 @@ the customer pays.
 
 ## Requirements
 
-- PrestaShop 1.7.6 or later, which covers 8.x and 9.x;
+- PrestaShop 1.7.8 up to and including 8.x;
 - PHP 7.4 or later with the `curl`, `hash`, `json` and `openssl` extensions;
 - an https storefront — `PS_SSL_ENABLED` on, and the shop URL served over TLS;
 - a Paymos account, with the project that should collect this shop's orders selected in the dashboard.
@@ -60,7 +60,9 @@ emailing the customer:
 
 - **Awaiting Paymos payment** — the order exists, the invoice is open, nothing has arrived;
 - **Paymos payment confirming** — the transfer is on chain and gathering confirmations;
-- **Paymos payment — manual review** — money arrived, but a figure stopped adding up.
+- **Paymos payment — manual review** — money arrived but a figure stopped adding up,
+  or the order changed while its old invoice was paid, still payable or unreadable,
+  so no new invoice was issued.
 
 Terminal outcomes go to PrestaShop's own states, so the rest of your back office
 behaves normally:
@@ -99,7 +101,9 @@ If the invoice cannot be created at all, the order is moved to Payment error and
 customer reads a page that says so plainly instead of hitting a blank redirect. The
 same controller has a neutral form for the ordinary case: a customer who closed the
 payment page too early sees that the payment is still being confirmed, plus a
-**Continue payment** link back to their open invoice. It is read-only either way —
+**Continue payment** link back to their open invoice. When the checkout would not
+replace an order's old invoice, the page says the order needs review and asks the
+customer to contact the store, with no payment link. It is read-only in every case —
 that page never transitions an order.
 
 ## Test in Sandbox
@@ -147,9 +151,14 @@ since redirects are not followed. Then read the PrestaShop log for
 `PaymosPrestaShop` entries. If the shop was unreachable for a while, run the
 reconcile URL once and the order will catch up.
 
-**An order is in manual review.** The order total changed between the invoice being
-created and the payment landing. The note lists the snapshot, the current total and
-the amount in the event; settle it by hand.
+**An order is in manual review.** It has two causes, and the order's note tells them
+apart. Either the order total changed between the invoice being created and the
+payment landing, and the note lists the snapshot, the current total and the amount
+in the event. Or the order total, the mode or the project changed while the old
+Paymos invoice was already paid, still payable, or could not be read, and the note
+starts with "Paymos payment needs manual review." In the second case no new invoice
+is issued and the customer is asked to contact you, so check the old invoice in the
+Paymos dashboard first. Settle either case by hand.
 
 **Paymos is not offered at checkout.** It hides itself when the cart's currency is
 not among the module's permitted currencies, and when the active environment is not

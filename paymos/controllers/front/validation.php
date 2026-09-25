@@ -85,6 +85,17 @@ class PaymosValidationModuleFrontController extends ModuleFrontController
                 new \PaymosPrestaShop\InvoiceStore(new \PaymosPrestaShop\PrestaShopDb()),
                 new \PaymosPrestaShop\PrestaShopAdapter()
             ))->start($orderId, $this->module->paymosSettings());
+        } catch (\Paymos\Plugin\InvoiceReplacementBlockedException $e) {
+            // The order's previous Paymos invoice is still payable (or could not
+            // be proven closed), so no second invoice was cut and the order is
+            // already in the manual-review state. Failing it here would hide a
+            // payment that may still arrive on the old invoice.
+            PrestaShopLogger::addLog('[Paymos] ' . $e->result()->summary(), 2, null, 'PaymosPrestaShop');
+            // Say so explicitly: the manual-review state alone is also what a
+            // post-payment amount mismatch leaves behind (BUG-190).
+            $this->redirectToPending($orderId, $cart, $customer, true);
+
+            return;
         } catch (\Throwable $e) {
             PrestaShopLogger::addLog('[Paymos] Checkout failed: ' . $e->getMessage(), 3, null, 'PaymosPrestaShop');
             $this->failStrandedOrder($orderId, $cart, $customer);
@@ -123,16 +134,26 @@ class PaymosValidationModuleFrontController extends ModuleFrontController
         $this->redirectToPending($orderId, $cart, $customer);
     }
 
-    private function redirectToPending($orderId, $cart, $customer)
+    /**
+     * @param bool $replacementBlocked The invoice replacement was blocked: the
+     *                                 page asks the buyer to contact the store
+     *                                 and offers no payment link.
+     */
+    private function redirectToPending($orderId, $cart, $customer, $replacementBlocked = false)
     {
+        $params = array(
+            'id_order' => (int) $orderId,
+            'id_cart' => (int) $cart->id,
+            'key' => $customer->secure_key,
+        );
+        if ($replacementBlocked) {
+            $params[\PaymosPrestaShop\PendingPage::REVIEW_PARAM] = '1';
+        }
+
         Tools::redirect($this->context->link->getModuleLink(
             $this->module->name,
             'pending',
-            array(
-                'id_order' => (int) $orderId,
-                'id_cart' => (int) $cart->id,
-                'key' => $customer->secure_key,
-            ),
+            $params,
             true
         ));
     }
