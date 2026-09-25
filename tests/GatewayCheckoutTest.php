@@ -74,7 +74,9 @@ function test_prestashop_gateway_checkout_reuses_existing_invoice_when_snapshot_
     $store = new InMemoryInvoiceStore();
     $store->save(prestashop_snapshot(array('paymos_invoice_id' => 'inv_existing', 'payment_url' => 'https://checkout.paymos.test/existing')));
 
-    $transport = new MockTransport(array());
+    $transport = new MockTransport(array(
+        prestashop_live_invoice_response('inv_existing', 'awaiting_client', time() + 600),
+    ));
     $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
     $adapter = new FakePrestaShopAdapter();
 
@@ -84,7 +86,8 @@ function test_prestashop_gateway_checkout_reuses_existing_invoice_when_snapshot_
 
     assertSameValue('https://checkout.paymos.test/existing', $result['payment_url'], 'matching existing invoice must be reused.');
     assertSameValue('1', $result['reused'], 'reuse must be flagged.');
-    assertSameValue(0, count($transport->requests()), 'reused invoice must not call Paymos API.');
+    assertSameValue(1, count($transport->requests()), 'a reused invoice is checked against the server once.');
+    assertSameValue('GET', $transport->requests()[0]['method'], 'the check is a read, never a second create.');
 }
 
 function test_prestashop_gateway_checkout_renews_invoice_when_amount_changes()
@@ -139,4 +142,83 @@ function test_prestashop_gateway_checkout_throws_when_response_missing_payment_u
     }
 
     throw new RuntimeException('GatewayCheckout must throw when the create response has no payment_url.');
+}
+
+function prestashop_live_invoice_response($invoiceId, $status, $expiresAt)
+{
+    return new HttpResponse(200, json_encode(array(
+        'invoice_id' => $invoiceId,
+        'project_id' => 'prj_123',
+        'status' => $status,
+        'payment_url' => 'https://checkout.paymos.test/' . $invoiceId,
+        'expires_at' => $expiresAt,
+        'order' => array('external_id' => 'ps_42_0', 'amount' => '100', 'currency' => 'USD'),
+    )), array());
+}
+
+function test_prestashop_gateway_checkout_renews_an_invoice_that_expired_on_the_server()
+{
+    // BUG-090 (PrestaShop): same amount and currency, but the Paymos invoice's
+    // 30 minutes ran out — the old link leads to an expired checkout.
+    $store = new InMemoryInvoiceStore();
+    $store->save(prestashop_snapshot(array('paymos_invoice_id' => 'inv_existing', 'payment_url' => 'https://checkout.paymos.test/existing', 'status' => 'awaiting_client')));
+    $transport = new MockTransport(array(
+        prestashop_live_invoice_response('inv_existing', 'awaiting_client', time() - 3600),
+        new HttpResponse(201, json_encode(array(
+            'invoice_id' => 'inv_fresh',
+            'status' => 'awaiting_client',
+            'payment_url' => 'https://checkout.paymos.test/fresh',
+        )), array()),
+    ));
+    $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
+
+    $result = (new GatewayCheckout($store, new FakePrestaShopAdapter(), static function () use ($client) {
+        return $client;
+    }))->start(42, prestashop_settings());
+
+    assertSameValue('https://checkout.paymos.test/fresh', $result['payment_url'], 'an expired invoice must be replaced by a fresh one.');
+    assertSameValue('ps_42_1', $store->findByOrderId(42)['external_order_id'], 'the fresh invoice needs a new external order id.');
+}
+
+function test_prestashop_gateway_checkout_renews_without_a_lookup_when_the_invoice_is_already_final()
+{
+    $store = new InMemoryInvoiceStore();
+    $store->save(prestashop_snapshot(array('paymos_invoice_id' => 'inv_existing', 'payment_url' => 'https://checkout.paymos.test/existing', 'status' => 'expired')));
+    $transport = new MockTransport(array(
+        new HttpResponse(201, json_encode(array(
+            'invoice_id' => 'inv_fresh',
+            'status' => 'awaiting_client',
+            'payment_url' => 'https://checkout.paymos.test/fresh',
+        )), array()),
+    ));
+    $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
+
+    $result = (new GatewayCheckout($store, new FakePrestaShopAdapter(), static function () use ($client) {
+        return $client;
+    }))->start(42, prestashop_settings());
+
+    assertSameValue('https://checkout.paymos.test/fresh', $result['payment_url'], 'a final invoice must be replaced by a fresh one.');
+    assertSameValue(1, count($transport->requests()), 'a recorded final status needs no lookup, only the create.');
+}
+
+function test_prestashop_gateway_checkout_keeps_an_invoice_the_server_holds_open_past_the_old_deadline()
+{
+    // BUG-163: confirming a network moves expires_at on the server and sends
+    // no webhook. Only the server's answer decides; an open invoice is kept.
+    foreach (array('awaiting_payment', 'confirming', 'underpaid_waiting') as $status) {
+        $store = new InMemoryInvoiceStore();
+        $store->save(prestashop_snapshot(array('paymos_invoice_id' => 'inv_existing', 'payment_url' => 'https://checkout.paymos.test/existing', 'status' => 'awaiting_client')));
+        $transport = new MockTransport(array(
+            prestashop_live_invoice_response('inv_existing', $status, time() - 3600),
+        ));
+        $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
+
+        $result = (new GatewayCheckout($store, new FakePrestaShopAdapter(), static function () use ($client) {
+            return $client;
+        }))->start(42, prestashop_settings());
+
+        assertSameValue('https://checkout.paymos.test/existing', $result['payment_url'], $status . ': the open invoice keeps its link.');
+        assertSameValue(1, count($transport->requests()), $status . ': one lookup and no new invoice.');
+        assertSameValue('ps_42_0', $store->findByOrderId(42)['external_order_id'], $status . ': the external order id is not bumped.');
+    }
 }

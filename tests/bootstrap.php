@@ -336,6 +336,11 @@ final class FakeDb implements PaymosPrestaShop\DbInterface
 
     public function getRow($sql)
     {
+        // The event store's isCommitted() lookup; nothing else reads a row here.
+        if (preg_match('/SELECT\s+.+?\s+FROM\s+`([^`]+)`\s+WHERE\s+`event_id`\s*=\s*\'([^\']*)\'/is', (string) $sql, $m)) {
+            return isset($this->tables[$m[1]][$m[2]]) ? $this->tables[$m[1]][$m[2]] : null;
+        }
+
         return null;
     }
 
