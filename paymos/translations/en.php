@@ -19,6 +19,7 @@ $_MODULE['<{paymos}prestashop>paymos_31f7b3073a3874c1d83eb15b16611a9c'] = 'Accep
 $_MODULE['<{paymos}prestashop>paymos_3754b8e90822cfa8f1db514fb9e16c3c'] = 'Select a valid mode (Sandbox or Live).';
 $_MODULE['<{paymos}prestashop>paymos_576efee13127ba0ce0c01db6786f3dd4'] = 'Connect this shop to the project currently selected in Paymos. Official packages contain no merchant secrets.';
 $_MODULE['<{paymos}prestashop>paymos_650be61892bf690026089544abbd9d26'] = 'Mode';
+$_MODULE['<{paymos}prestashop>paymos_6ab653b5770e0e30adddd8bcc4e8fa1b'] = 'Paymos requires PHP 7.4 or later.';
 $_MODULE['<{paymos}prestashop>paymos_91533e3b193fd91d05e6d153dd3d293e'] = 'Paymos needs your shop URL to be HTTPS. PrestaShop is reporting an http:// address because SSL is disabled in Shop Parameters → General. Turn on both SSL settings there, then connect again.';
 $_MODULE['<{paymos}prestashop>paymos_938ebbf2c66a9f4a6308708c65525494'] = 'Are you sure you want to uninstall Paymos? Your existing orders keep their history.';
 $_MODULE['<{paymos}prestashop>paymos_955ad3298db330b5ee880c2c9e6f23a0'] = 'Live';

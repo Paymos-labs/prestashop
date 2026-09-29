@@ -19,6 +19,7 @@ $_MODULE['<{paymos}prestashop>paymos_31f7b3073a3874c1d83eb15b16611a9c'] = '在�
 $_MODULE['<{paymos}prestashop>paymos_3754b8e90822cfa8f1db514fb9e16c3c'] = '请选择有效的模式（沙盒或正式）。';
 $_MODULE['<{paymos}prestashop>paymos_576efee13127ba0ce0c01db6786f3dd4'] = '将本商店连接到 Paymos 中当前选中的项目。官方安装包不包含任何商户密钥。';
 $_MODULE['<{paymos}prestashop>paymos_650be61892bf690026089544abbd9d26'] = '模式';
+$_MODULE['<{paymos}prestashop>paymos_6ab653b5770e0e30adddd8bcc4e8fa1b'] = 'Paymos 需要 PHP 7.4 或更高版本。';
 $_MODULE['<{paymos}prestashop>paymos_91533e3b193fd91d05e6d153dd3d293e'] = 'Paymos 需要店铺网址使用 HTTPS。由于店铺常规参数（Shop Parameters → General）中未启用 SSL，PrestaShop 报告的是 http:// 地址。请在该页面开启两个 SSL 选项，然后重新连接。';
 $_MODULE['<{paymos}prestashop>paymos_938ebbf2c66a9f4a6308708c65525494'] = '确定要卸载 Paymos 吗？现有订单的历史记录会保留。';
 $_MODULE['<{paymos}prestashop>paymos_955ad3298db330b5ee880c2c9e6f23a0'] = '正式';

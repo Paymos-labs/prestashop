@@ -19,6 +19,7 @@ $_MODULE['<{paymos}prestashop>paymos_31f7b3073a3874c1d83eb15b16611a9c'] = 'Ödem
 $_MODULE['<{paymos}prestashop>paymos_3754b8e90822cfa8f1db514fb9e16c3c'] = 'Geçerli bir mod seçin (Sandbox veya Live).';
 $_MODULE['<{paymos}prestashop>paymos_576efee13127ba0ce0c01db6786f3dd4'] = 'Bu mağazayı Paymos\'ta seçili projeye bağlayın. Resmi paketler işyeri gizli anahtarı içermez.';
 $_MODULE['<{paymos}prestashop>paymos_650be61892bf690026089544abbd9d26'] = 'Mod';
+$_MODULE['<{paymos}prestashop>paymos_6ab653b5770e0e30adddd8bcc4e8fa1b'] = 'Paymos için PHP 7.4 veya daha yeni bir sürüm gerekir.';
 $_MODULE['<{paymos}prestashop>paymos_91533e3b193fd91d05e6d153dd3d293e'] = 'Paymos, mağaza adresinizin HTTPS olmasını gerektirir. Mağazanın genel parametrelerinde (Shop Parameters → General) SSL kapalı olduğu için PrestaShop http:// adresi bildiriyor. Oradaki iki SSL ayarını da açın, ardından yeniden bağlanın.';
 $_MODULE['<{paymos}prestashop>paymos_938ebbf2c66a9f4a6308708c65525494'] = 'Paymos\'u kaldırmak istediğinize emin misiniz? Mevcut siparişleriniz geçmişini korur.';
 $_MODULE['<{paymos}prestashop>paymos_955ad3298db330b5ee880c2c9e6f23a0'] = 'Live';
