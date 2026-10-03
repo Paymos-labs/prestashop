@@ -188,9 +188,10 @@ final class CallbackProcessor
             return false;
         }
 
+        $applied = (new OrderMapper($this->prestashop))->apply($event, $row);
         $this->invoiceStore->updateStatus($event->invoiceId(), $event->status());
 
-        return (new OrderMapper($this->prestashop))->apply($event, $row);
+        return $applied;
     }
 
     /**

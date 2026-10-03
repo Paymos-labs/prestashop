@@ -205,6 +205,8 @@ function paymos_prestashop_write_generated_config($php)
  */
 final class FakePrestaShopAdapter implements PaymosPrestaShop\PrestaShopAdapterInterface
 {
+    public $failBeforePayment = false;
+    public $failAfterPayment = false;
     /** @var array<int, array<string, mixed>> */
     public $orders = array();
 
@@ -249,10 +251,19 @@ final class FakePrestaShopAdapter implements PaymosPrestaShop\PrestaShopAdapterI
 
     public function setOrderState($orderId, $orderStateId)
     {
+        if ($this->failBeforePayment) {
+            $this->failBeforePayment = false;
+            throw new RuntimeException('Failure before CMS payment');
+        }
         $this->transitions[] = array(
             'id_order' => (int) $orderId,
             'id_order_state' => (int) $orderStateId,
         );
+        if ((int) $orderStateId === $this->stateIds['paid']) $this->paid[(int) $orderId] = true;
+        if ($this->failAfterPayment) {
+            $this->failAfterPayment = false;
+            throw new RuntimeException('Failure after CMS payment');
+        }
     }
 
     public function orderStateId($actionKey)
