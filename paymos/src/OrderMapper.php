@@ -59,6 +59,11 @@ final class OrderMapper
             return false;
         }
 
+        // The CMS may have committed before the invoice snapshot was saved.
+        if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE && $this->prestashop->orderHasBeenPaid($orderId)) {
+            return false;
+        }
+
         if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE) {
             $currentAmount = $this->formatAmount($this->scalar($order, 'total', $row['amount']));
             $currentCurrency = strtoupper($this->scalar($order, 'currency', $row['currency']));
