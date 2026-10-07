@@ -62,7 +62,7 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.3.16';
+        $this->version = '1.3.17';
         $this->author = 'Paymos';
         $this->need_instance = 0;
         // A fixed maximum: the Addons validator rejects 'compatible with whatever is
