@@ -179,6 +179,28 @@ final class CallbackProcessor
         // paid guard only protects paid orders; a failed or cancelled one was
         // moved back by a stale underpaid_waiting or confirming. The recorded
         // invoice status decides, and it stays final.
+
+        // invoice-late-payment: money crossed the invoice's total AFTER it closed. The order keeps
+        // its decision — one native order note plus a per-invoice marker in the row store, decided
+        // BEFORE the stale-after-final guard above (a late event arrives after a terminal status by
+        // definition). No state, stock or payment action; the marker makes duplicates silent.
+        if (StatusMapper::invoiceAction($event->type(), $event->status()) === StatusMapper::ACTION_NOTE_PAID_LATE) {
+            if (!empty($row['paid_late_noted'])) {
+                $this->prestashop->log('Paymos paid-late note already recorded.', array(
+                    'invoice' => $event->invoiceId(),
+                ));
+                return false;
+            }
+
+            $this->prestashop->addOrderNote(
+                (int) $row['id_order'],
+                'Paymos: payment arrived after the invoice deadline and covered the full amount. Invoice: ' . $event->invoiceId()
+            );
+            $row['paid_late_noted'] = $event->id() !== '' ? $event->id() : '1';
+            $this->invoiceStore->save($row);
+            return false;
+        }
+
         if (StatusMapper::isFinalStatus(isset($row['status']) ? (string) $row['status'] : '')) {
             $this->prestashop->log('Paymos ignored an invoice status that arrived after a final one.', array(
                 'invoice' => $event->invoiceId(),
@@ -187,6 +209,7 @@ final class CallbackProcessor
             ));
             return false;
         }
+
 
         $applied = (new OrderMapper($this->prestashop))->apply($event, $row);
         $this->invoiceStore->updateStatus($event->invoiceId(), $event->status());

@@ -54,6 +54,7 @@ require __DIR__ . '/ConfigTest.php';
 require __DIR__ . '/EventStoreTest.php';
 require __DIR__ . '/GatewayCheckoutTest.php';
 require __DIR__ . '/CallbackProcessorTest.php';
+require __DIR__ . '/PaidLateCallbackTest.php';
 require __DIR__ . '/CrashRecoveryTest.php';
 require __DIR__ . '/OrderMapperTest.php';
 require __DIR__ . '/PrestaShopDbTest.php';
