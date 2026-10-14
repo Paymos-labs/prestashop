@@ -45,6 +45,16 @@ final class InvoiceStore implements InvoiceStoreInterface
             'updated_at' => $now,
         );
 
+        // Written only by the callback that set it; other saves leave the marker alone.
+        $paidLateNoted = '';
+        if (array_key_exists('paid_late_noted', $row)) {
+            $data['paid_late_noted'] = $row['paid_late_noted'] === null ? null : (string) $row['paid_late_noted'];
+            $paidLateNoted = ",
+                `paid_late_noted` = " . ($data['paid_late_noted'] === null
+                ? 'NULL'
+                : '\'' . $this->db->escape($data['paid_late_noted']) . '\'');
+        }
+
         $existing = $this->findByExternalOrderId($data['external_order_id']);
         if (is_array($existing)) {
             $this->db->execute('UPDATE `' . Migrations::table(Migrations::INVOICES_TABLE) . '` SET
@@ -58,7 +68,7 @@ final class InvoiceStore implements InvoiceStoreInterface
                 `payment_url` = \'' . $this->db->escape($data['payment_url']) . '\',
                 `status` = \'' . $this->db->escape($data['status']) . '\',
                 `renew_count` = ' . (int) $data['renew_count'] . ',
-                `updated_at` = \'' . $this->db->escape($data['updated_at']) . '\'
+                `updated_at` = \'' . $this->db->escape($data['updated_at']) . '\'' . $paidLateNoted . '
                 WHERE `external_order_id` = \'' . $this->db->escape($data['external_order_id']) . '\'');
 
             return;

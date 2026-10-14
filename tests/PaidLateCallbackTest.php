@@ -41,7 +41,7 @@ function test_prestashop_paid_late_notes_once_and_changes_nothing()
 
     assertSameValue(1, count($adapter->notes), 'paid_late must add exactly one order note.');
     assertSameValue(42, $adapter->notes[0]['id_order'], 'the note belongs to the snapshot order.');
-    assertTrueValue(strpos($adapter->notes[0]['note'], 'arrived after the invoice deadline') !== false, 'the note names the late fact.');
+    assertTrueValue(strpos($adapter->notes[0]['note'], 'finished paying for this order after the invoice closed') !== false, 'the note names the late fact.');
     assertSameValue('evt_late_1', $store->findByExternalOrderId('ps_42_0')['paid_late_noted'], 'marker records the event id.');
     assertSameValue('expired', $store->findByExternalOrderId('ps_42_0')['status'], 'row status stays final.');
     assertTrueValue($result->statusCode() === 200 || $result->statusCode() === 204, 'the note outcome acknowledges.');
