@@ -36,6 +36,7 @@ final class Migrations
             `payment_url` TEXT NOT NULL,
             `status` VARCHAR(64) NOT NULL,
             `renew_count` INT(11) UNSIGNED NOT NULL DEFAULT 0,
+            `paid_late_noted` VARCHAR(128) NULL,
             `created_at` DATETIME NULL,
             `updated_at` DATETIME NULL,
             PRIMARY KEY (`id`),
@@ -55,6 +56,12 @@ final class Migrations
             PRIMARY KEY (`event_id`),
             KEY `expires_at` (`expires_at`)
         ) ENGINE=' . self::engine() . ' DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+
+        // Tables created before invoice-late-payment lack the paid-late marker column; SHOW COLUMNS works
+        // on MySQL and MariaDB alike, so the ALTER runs once per shop.
+        if (!$db->getValue('SHOW COLUMNS FROM `' . $invoiceTable . '` LIKE \'paid_late_noted\'')) {
+            $db->execute('ALTER TABLE `' . $invoiceTable . '` ADD COLUMN `paid_late_noted` VARCHAR(128) NULL');
+        }
 
         return true;
     }
