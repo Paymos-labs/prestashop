@@ -22,6 +22,7 @@ function prestashop_reverse_verify_client(array $invoiceOverrides = array())
         'invoice_id' => 'inv_123',
         'project_id' => 'prj_123',
         'status' => 'paid',
+        'is_test' => true,
         'order' => array(
             'external_id' => 'ps_42_0',
             'amount' => '100',

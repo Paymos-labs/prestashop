@@ -19,6 +19,7 @@ function test_prestashop_reconciler_applies_paid_invoice_when_webhook_was_missed
             'invoice_id' => 'inv_123',
             'project_id' => 'prj_123',
             'status' => 'paid',
+            'is_test' => true,
             'order' => array(
                 'external_id' => 'ps_42_0',
                 'amount' => '100',
@@ -47,6 +48,7 @@ function test_prestashop_reconciler_skips_snapshot_mismatch()
             'invoice_id' => 'inv_123',
             'project_id' => 'other_project',
             'status' => 'paid',
+            'is_test' => true,
             'order' => array(
                 'external_id' => 'ps_42_0',
                 'amount' => '100',
