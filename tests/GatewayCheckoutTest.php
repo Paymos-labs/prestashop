@@ -156,6 +156,7 @@ function prestashop_live_invoice_response($invoiceId, $status, $expiresAt)
         'invoice_id' => $invoiceId,
         'project_id' => 'prj_123',
         'status' => $status,
+        'is_test' => true,
         'payment_url' => 'https://checkout.paymos.test/' . $invoiceId,
         'expires_at' => $expiresAt,
         'order' => array('external_id' => 'ps_42_0', 'amount' => '100', 'currency' => 'USD'),
