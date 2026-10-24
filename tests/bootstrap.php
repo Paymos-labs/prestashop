@@ -297,6 +297,39 @@ final class FakeDb implements PaymosPrestaShop\DbInterface
     /** @var array<string, array<int, array<string, mixed>>> */
     private $tables = array();
 
+    /**
+     * Test seam for the A10-02 stale-owner scenarios: read one event-store row
+     * by its event id, or null when absent.
+     *
+     * @param string $eventId
+     * @return array<string, mixed>|null
+     */
+    public function eventRow($eventId)
+    {
+        foreach ($this->tables as $rows) {
+            if (isset($rows[$eventId]) && is_array($rows[$eventId])) {
+                return $rows[$eventId];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Test seam: rewind a row's expiry to simulate the reservation TTL passing.
+     *
+     * @param string $eventId
+     * @param int $expiresAt
+     */
+    public function expireEventRow($eventId, $expiresAt)
+    {
+        foreach ($this->tables as $table => $rows) {
+            if (isset($rows[$eventId])) {
+                $this->tables[$table][$eventId]['expires_at'] = (int) $expiresAt;
+            }
+        }
+    }
+
     public function execute($sql)
     {
         // The stores only issue DELETE/UPDATE here; the tests assert through
@@ -319,18 +352,22 @@ final class FakeDb implements PaymosPrestaShop\DbInterface
             return true;
         }
 
-        if (preg_match('/DELETE\s+FROM\s+`([^`]+)`\s+WHERE\s+`event_id`\s*=\s*\'([^\']*)\'/is', $sql, $m)) {
+        if (preg_match('/DELETE\s+FROM\s+`([^`]+)`\s+WHERE\s+`event_id`\s*=\s*\'([^\']*)\'(?:\s+AND\s+`owner_token`\s*=\s*\'([^\']*)\')?/is', $sql, $m)) {
             $table = $m[1];
-            if (isset($this->tables[$table][$m[2]])) {
+            if (isset($this->tables[$table][$m[2]])
+                && (!isset($m[3])
+                    || (string) $this->tables[$table][$m[2]]['owner_token'] === stripslashes($m[3]))) {
                 unset($this->tables[$table][$m[2]]);
             }
 
             return true;
         }
 
-        if (preg_match('/UPDATE\s+`([^`]+)`\s+SET\s+`expires_at`\s*=\s*(\d+)\s+WHERE\s+`event_id`\s*=\s*\'([^\']*)\'/is', $sql, $m)) {
+        if (preg_match('/UPDATE\s+`([^`]+)`\s+SET\s+`expires_at`\s*=\s*(\d+)\s+WHERE\s+`event_id`\s*=\s*\'([^\']*)\'(?:\s+AND\s+`owner_token`\s*=\s*\'([^\']*)\')?/is', $sql, $m)) {
             $table = $m[1];
-            if (isset($this->tables[$table][$m[3]])) {
+            if (isset($this->tables[$table][$m[3]])
+                && (!isset($m[4])
+                    || (string) $this->tables[$table][$m[3]]['owner_token'] === stripslashes($m[4]))) {
                 $this->tables[$table][$m[3]]['expires_at'] = (int) $m[2];
             }
 
