@@ -62,7 +62,7 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.4.3';
+        $this->version = '1.4.4';
         $this->author = 'Paymos';
         $this->need_instance = 0;
         // A fixed maximum: the Addons validator rejects 'compatible with whatever is
@@ -78,7 +78,7 @@ class Paymos extends PaymentModule
         parent::__construct();
 
         $this->displayName = $this->l('Paymos');
-        $this->description = $this->l('Accept USDT and USDC at checkout. Funds settle straight to your wallet — no chargebacks, no card rails.');
+        $this->description = $this->l('Add Paymos at checkout, track payment states in your back office, and accept orders after payment verification.');
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall Paymos? Your existing orders keep their history.');
     }
 
