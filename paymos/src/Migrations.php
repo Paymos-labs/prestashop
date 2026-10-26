@@ -9,7 +9,7 @@ namespace PaymosPrestaShop;
  * a unique-key insert is the only race-proof dedup primitive, exactly as the
  * Paymos plugin canon mandates.
  *
- * The constructor takes a DB handle exposing execute()/getValue()/insert helpers
+ * The constructor takes a DB handle exposing execute()/getRows()/insert helpers
  * (the PrestaShopAdapter wraps PrestaShop's \Db) so the tables can be created on
  * install and lazily ensured on the checkout/callback paths.
  */
@@ -62,7 +62,10 @@ final class Migrations
         // the `owner_token` column. Old rows keep '' and never match a live
         // owner token, so they simply expire via their reservation TTL (<=300s)
         // — no data migration is needed, and the takeover window closes itself.
-        if (!$db->getValue('SHOW COLUMNS FROM `' . $eventTable . '` LIKE \'owner_token\'')) {
+        // Core getValue()/getRow() append LIMIT 1 on older PrestaShop releases;
+        // SHOW COLUMNS does not accept that clause. executeS, exposed by getRows,
+        // reads metadata without rewriting the SQL.
+        if (count($db->getRows('SHOW COLUMNS FROM `' . $eventTable . '` LIKE \'owner_token\'')) === 0) {
             try {
                 $db->execute('ALTER TABLE `' . $eventTable . '` ADD COLUMN `owner_token` CHAR(32) NOT NULL DEFAULT \'\'');
             } catch (\Throwable $e) {
@@ -73,7 +76,7 @@ final class Migrations
 
         // Tables created before invoice-late-payment lack the paid-late marker column; SHOW COLUMNS works
         // on MySQL and MariaDB alike, so the ALTER runs once per shop.
-        if (!$db->getValue('SHOW COLUMNS FROM `' . $invoiceTable . '` LIKE \'paid_late_noted\'')) {
+        if (count($db->getRows('SHOW COLUMNS FROM `' . $invoiceTable . '` LIKE \'paid_late_noted\'')) === 0) {
             $db->execute('ALTER TABLE `' . $invoiceTable . '` ADD COLUMN `paid_late_noted` VARCHAR(128) NULL');
         }
 
