@@ -80,7 +80,9 @@ check_native(strpos($module->getContent(), 'paymos-connect-button') !== false, '
 // Simulate an approved Connect result using encrypted fixture credentials. This
 // exercises native storage/decryption; no real merchant or processing API exists.
 $fixtureCredentials = array(
-    'base_url' => 'https://api.paymos.invalid',
+    // CredentialSet intentionally accepts only the canonical service origin.
+    // All checkout/reverse calls below still use the injected MockTransport.
+    'base_url' => \Paymos\Plugin\CredentialSet::DEFAULT_BASE_URL,
     'api_key' => 'pk_test_native_fixture',
     'api_secret' => 'sk_test_native_fixture',
     'project_id' => 'prj_native_fixture',
