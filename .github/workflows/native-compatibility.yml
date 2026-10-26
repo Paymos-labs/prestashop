@@ -104,17 +104,24 @@ jobs:
           url = pathlib.Path('/tmp/paymos-native-cron-url').read_text()
           parts = urllib.parse.urlsplit(url)
           assert parts.netloc == '127.0.0.1:8080' and parts.scheme == 'http'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          opener = urllib.request.build_opener(NoRedirect)
+          def fetch(target):
+              try:
+                  response = opener.open(target, timeout=30)
+              except urllib.error.HTTPError as error:
+                  response = error
+              with response:
+                  return response.status, response.read().decode()
           query = urllib.parse.parse_qs(parts.query)
           query['token'] = ['wrong-native-fixture']
           wrong = urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode(query, doseq=True)))
-          try:
-              urllib.request.urlopen(wrong, timeout=30)
-              raise AssertionError('Wrong token accepted')
-          except urllib.error.HTTPError as error:
-              assert error.code == 403, error.code
-          with urllib.request.urlopen(url, timeout=30) as response:
-              assert response.status == 200
-              assert 'Orders updated: 0' in response.read().decode()
+          status, body = fetch(wrong)
+          assert status == 403 and body.strip() == 'Forbidden', ('Wrong-token cron response', status, parts.path)
+          status, body = fetch(url)
+          assert status == 200 and 'Orders updated: 0' in body, ('Valid-token cron response', status, parts.path)
           print('PASS actual HTTP cron: wrong token 403, existing token 200; no API calls')
           PY
       - name: Diagnostic logs on failure
