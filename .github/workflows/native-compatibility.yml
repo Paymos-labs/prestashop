@@ -1,0 +1,124 @@
+name: Native released ZIP compatibility
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to verify (vX.Y.Z)'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: native-prestashop-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  install-and-payment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: '8.2.8'
+            image: 'prestashop/prestashop:8.2.8@sha256:5e3f6ddd6fe80ccc466a192e9c8a95c16ebb91857b13518f8dca9a0139ca61a5'
+          - version: '9.0.3'
+            image: 'prestashop/prestashop:9.0.3@sha256:bd05527bc324b43bf70458413be60181614fad62f71a63af2525362985207b3d'
+          - version: '9.1.5'
+            image: 'prestashop/prestashop:9.1.5@sha256:515336e3c1c50c5613f7cd7382b384fa095fba9d7d8497c80aeb3046c135c535'
+          - version: '9.2.0'
+            image: 'prestashop/prestashop:9.2.0@sha256:09c36d25a22fd52f6ab876e8d7564c2b6830ba27236f50ef770dc6a650a3208e'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Download exact released install ZIP and verify SHA-256
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          asset="paymos-prestashop-${RELEASE_TAG}.zip"
+          mkdir package
+          # Tags precede draft assets in the publisher; wait, never fall back to latest.
+          ready=0
+          for attempt in $(seq 1 90); do
+            if gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$asset" --pattern "$asset.sha256" --dir package --clobber; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" = 1
+          (cd package && sha256sum --check "$asset.sha256")
+          unzip -q "package/$asset" -d package/module
+          test -f package/module/paymos/paymos.php
+          test -f package/module/paymos/vendor/paymos/php-sdk/src/Client.php
+      - name: Start disposable native shop
+        env:
+          PS_IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          docker network create paymos-native
+          docker run -d --name paymos-db --network paymos-native \
+            -e MYSQL_ROOT_PASSWORD=ci-root-fixture -e MYSQL_DATABASE=prestashop mysql:8.0
+          docker run -d --name paymos-shop --network paymos-native -p 127.0.0.1:8080:80 \
+            -e DB_SERVER=paymos-db -e DB_NAME=prestashop -e DB_USER=root -e DB_PASSWD=ci-root-fixture \
+            -e PS_INSTALL_AUTO=1 -e PS_DOMAIN=127.0.0.1:8080 -e PS_LANGUAGE=en -e PS_COUNTRY=fr \
+            -e PS_FOLDER_ADMIN=admin-ci -e PS_FOLDER_INSTALL=install-ci \
+            -e ADMIN_MAIL=native@example.invalid -e ADMIN_PASSWD=NativeFixturePassword123! \
+            "$PS_IMAGE"
+          ready=0
+          for attempt in $(seq 1 120); do
+            if docker exec paymos-shop sh -c 'test -f app/config/parameters.php && test ! -f install.lock && test ! -d install-ci' \
+              && curl -fsS -o /dev/null http://127.0.0.1:8080/; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" = 1
+          docker cp package/module/paymos paymos-shop:/var/www/html/modules/
+          docker cp tests/native-platform.php paymos-shop:/tmp/native-platform.php
+          docker exec paymos-shop chown -R www-data:www-data /var/www/html/modules/paymos
+      - name: Native install, settings, checkout, SQL and verified payment tests
+        env:
+          PS_VERSION: ${{ matrix.version }}
+        run: |
+          set -euo pipefail
+          docker exec -u www-data -e PAYMOS_NATIVE_CI=1 paymos-shop \
+            php /tmp/native-platform.php /var/www/html "$PS_VERSION" | tee native-result.log
+          grep -q '^NATIVE PLATFORM PASS$' native-result.log
+      - name: HTTP reconcile refuses a wrong token and accepts the existing token
+        run: |
+          set -euo pipefail
+          docker cp paymos-shop:/tmp/paymos-native-cron-url /tmp/paymos-native-cron-url
+          # Token stays out of workflow output. Real controller, empty SQL queue.
+          python3 - <<'PY'
+          import pathlib, urllib.request, urllib.error, urllib.parse
+          url = pathlib.Path('/tmp/paymos-native-cron-url').read_text()
+          parts = urllib.parse.urlsplit(url)
+          assert parts.netloc == '127.0.0.1:8080' and parts.scheme == 'http'
+          query = urllib.parse.parse_qs(parts.query)
+          query['token'] = ['wrong-native-fixture']
+          wrong = urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode(query, doseq=True)))
+          try:
+              urllib.request.urlopen(wrong, timeout=30)
+              raise AssertionError('Wrong token accepted')
+          except urllib.error.HTTPError as error:
+              assert error.code == 403, error.code
+          with urllib.request.urlopen(url, timeout=30) as response:
+              assert response.status == 200
+              assert 'Orders updated: 0' in response.read().decode()
+          print('PASS actual HTTP cron: wrong token 403, existing token 200; no API calls')
+          PY
+      - name: Diagnostic logs on failure
+        if: failure()
+        run: |
+          docker logs --tail 100 paymos-shop || true
+          docker logs --tail 30 paymos-db || true
+      - name: Remove disposable containers
+        if: always()
+        run: |
+          docker rm -f paymos-shop paymos-db || true
+          docker network rm paymos-native || true

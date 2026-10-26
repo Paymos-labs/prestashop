@@ -62,14 +62,14 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.4.4';
+        $this->version = '1.4.5';
         $this->author = 'Paymos';
         $this->need_instance = 0;
         // A fixed maximum: the Addons validator rejects 'compatible with whatever is
         // installed' (_PS_VERSION_), and every declared version is a promise to test it.
         // The minimum is 1.7.8.0, the first PrestaShop that runs on PHP 7.4, the
         // module's own floor (Requirements::PHP_MIN); 1.7.6 and 1.7.7 stop at 7.3.
-        $this->ps_versions_compliancy = array('min' => '1.7.8.0', 'max' => '8.99.99');
+        $this->ps_versions_compliancy = array('min' => '1.7.8.0', 'max' => '9.99.99');
         $this->controllers = array('validation', 'callback', 'pending', 'reconcile');
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
@@ -299,7 +299,7 @@ class Paymos extends PaymentModule
 
     /**
      * Public HTTP URL of the reconcile cron, including the secure token the cron
-     * checks (Tools::encrypt('paymos/reconcile')). Shown in the admin panel so the
+     * checks (Tools::hash('paymos/reconcile')). Shown in the admin panel so the
      * merchant can wire it into a scheduler. Returns '' if the base shop URL is
      * unknown.
      */
@@ -311,7 +311,7 @@ class Paymos extends PaymentModule
         return $this->context->link->getModuleLink(
             $this->name,
             'reconcile',
-            array('token' => Tools::encrypt('paymos/reconcile')),
+            array('token' => Tools::hash('paymos/reconcile')),
             true
         );
     }
