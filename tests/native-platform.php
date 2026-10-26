@@ -13,7 +13,8 @@ $_SERVER['SERVER_NAME'] = '127.0.0.1';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/index.php';
 $nativeRoot = rtrim($argv[1], '/');
-define('_PS_ADMIN_DIR_', $nativeRoot . '/admin-ci');
+// PS9's installer finalizes bundle assets in admin-dev. Keep that native name.
+define('_PS_ADMIN_DIR_', $nativeRoot . '/admin-dev');
 require $nativeRoot . '/config/config.inc.php';
 
 use Paymos\Client;
@@ -39,6 +40,14 @@ check_native(_PS_VERSION_ === $argv[2], 'Exact native PrestaShop version ' . _PS
 $context = Context::getContext();
 $context->employee = new Employee(1);
 $context->currency = Currency::getDefaultCurrency();
+// Follow the platform's own bin/console bootstrap. Module::install updates
+// translation tables through SymfonyContainer; config.inc.php alone has no
+// booted kernel. PrestaShop 9 split AppKernel into concrete app kernels.
+global $kernel;
+$kernel = class_exists('AdminKernel') ? new AdminKernel('prod', false) : new AppKernel('prod', false);
+$kernel->boot();
+check_native(\PrestaShop\PrestaShop\Adapter\SymfonyContainer::getInstance() === $kernel->getContainer(),
+    'Native module services use the booted platform kernel container');
 Configuration::updateValue('PS_MAIL_METHOD', 3); // core setting: never send email
 Configuration::updateValue('PS_SSL_ENABLED', 0); // isolated loopback HTTP only
 Configuration::updateValue('PS_SSL_ENABLED_EVERYWHERE', 0);
@@ -56,7 +65,7 @@ $module = Module::getInstanceByName('paymos');
 check_native($module->active, 'Installed module reloads as active');
 check_native((int) Configuration::get('PAYMOS_OS_PENDING') > 0, 'Unpaid order state installed');
 $context->controller = new AdminController('AdminModules');
-AdminController::$currentIndex = '/admin-ci/index.php?controller=AdminModules';
+AdminController::$currentIndex = '/admin-dev/index.php?controller=AdminModules';
 $page = $module->getContent();
 check_native(strpos($page, 'controller=reconcile') !== false, 'Native admin settings render cron URL');
 $method = new ReflectionMethod($module, 'reconcileUrl');

@@ -65,11 +65,16 @@ jobs:
           docker run -d --name paymos-shop --network paymos-native -p 127.0.0.1:8080:80 \
             -e DB_SERVER=paymos-db -e DB_NAME=prestashop -e DB_USER=root -e DB_PASSWD=ci-root-fixture \
             -e PS_INSTALL_AUTO=1 -e PS_DOMAIN=127.0.0.1:8080 -e PS_LANGUAGE=en -e PS_COUNTRY=fr \
-            -e PS_FOLDER_ADMIN=admin-ci -e PS_FOLDER_INSTALL=install-ci \
+            -e PS_FOLDER_ADMIN=admin-dev -e PS_FOLDER_INSTALL=install-ci \
             -e ADMIN_MAIL=native@example.invalid -e ADMIN_PASSWD=NativeFixturePassword123! \
             "$PS_IMAGE"
           ready=0
           for attempt in $(seq 1 120); do
+            state="$(docker inspect --format '{{.State.Status}}' paymos-shop)"
+            if [ "$state" = exited ] || [ "$state" = dead ]; then
+              echo '::error::Native PrestaShop installer stopped; inspect the diagnostic logs.'
+              exit 1
+            fi
             if docker exec paymos-shop sh -c 'test -f app/config/parameters.php && test ! -f install.lock && test ! -d install-ci' \
               && curl -fsS -o /dev/null http://127.0.0.1:8080/; then
               ready=1
