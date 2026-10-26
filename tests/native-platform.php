@@ -54,6 +54,9 @@ Configuration::updateValue('PS_SSL_ENABLED_EVERYWHERE', 0);
 Configuration::updateValue('PS_TAX', 0);
 Configuration::updateValue('PS_SHOP_ENABLE', 1);
 Configuration::updateValue('PS_REWRITING_SETTINGS', 0);
+// config.inc.php created Link before these fixture settings changed. Its
+// constructor caches rewriting/SSL flags; emulate the next native request.
+$context->link = new Link();
 
 $module = Module::getInstanceByName('paymos');
 check_native($module instanceof PaymentModule, 'Released module loads with the real PaymentModule parent');
@@ -108,6 +111,9 @@ $store = new InvoiceStore($db);
 
 function native_order($module, $context)
 {
+    // Each scenario represents a separate checkout request. Native Cart caches
+    // include the previous customer; do not carry them across fixture orders.
+    Cart::resetStaticCache();
     $customer = new Customer();
     $customer->firstname = 'Native';
     $customer->lastname = 'Fixture';
