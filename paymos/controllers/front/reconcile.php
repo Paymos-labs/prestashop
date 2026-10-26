@@ -12,7 +12,7 @@
  * (modules/.htaccess), so the cron must be reachable as a front-controller URL.
  * Trigger it from cron over HTTP with the secure token:
  *   https://shop.example.com/index.php?fc=module&module=paymos&controller=reconcile&token=...
- * The `token` query parameter must equal Tools::encrypt('paymos/reconcile') (the
+ * The `token` query parameter must equal Tools::hash('paymos/reconcile') (the
  * secure token shown in the module's admin panel) so it is not publicly triggerable.
  *
  * @author    Paymos
@@ -40,7 +40,9 @@ class PaymosReconcileModuleFrontController extends ModuleFrontController
 
         // Token gate: the HTTP entry must carry the module's secure token so it is
         // not publicly triggerable.
-        $expected = Tools::encrypt('paymos/reconcile');
+        // Tools::encrypt was an alias of hash, removed in PrestaShop 9.
+        // Calling hash directly also preserves tokens issued by older shops.
+        $expected = Tools::hash('paymos/reconcile');
         if (!hash_equals($expected, (string) Tools::getValue('token'))) {
             $this->respond(403, 'Forbidden');
         }

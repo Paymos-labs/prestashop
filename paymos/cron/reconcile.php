@@ -16,7 +16,7 @@
  *   index.php?fc=module&module=paymos&controller=reconcile&token=...
  *
  * This CLI entry's HTTP fallback still requires a `token` equal to
- * Tools::encrypt('paymos/reconcile') for stores on PS < 9 where direct .php
+ * Tools::hash('paymos/reconcile') for stores on PS < 9 where direct .php
  * access is allowed. CLI runs need no token.
  *
  * @author    Paymos
@@ -39,7 +39,7 @@ if (!Validate::isLoadedObject($module) || !$module->active) {
 // Over HTTP, require a token equal to the module's secure token. On CLI there is
 // no token requirement.
 if (PHP_SAPI !== 'cli') {
-    $expected = Tools::encrypt('paymos/reconcile');
+    $expected = Tools::hash('paymos/reconcile');
     if (!hash_equals($expected, (string) Tools::getValue('token'))) {
         http_response_code(403);
         exit('Forbidden');

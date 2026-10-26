@@ -1,0 +1,46 @@
+{
+  "sources": [
+    {
+      "version": "1.7.8.11",
+      "path": "classes/Tools.php",
+      "url": "https://raw.githubusercontent.com/PrestaShop/PrestaShop/1.7.8.11/classes/Tools.php",
+      "sha256": "370a441c6c5517734d23f26156835d7235eeba31ab5b40207bb6d0498b66d8e5"
+    },
+    {
+      "version": "8.2.2",
+      "path": "classes/Tools.php",
+      "url": "https://raw.githubusercontent.com/PrestaShop/PrestaShop/8.2.2/classes/Tools.php",
+      "sha256": "82852dbaf71258f3da739a2f0119514b54c8d24c4acb780b372662ef874d7cef"
+    },
+    {
+      "version": "8.2.2",
+      "path": "src/Core/Security/Hashing.php",
+      "url": "https://raw.githubusercontent.com/PrestaShop/PrestaShop/8.2.2/src/Core/Security/Hashing.php",
+      "sha256": "15dde78d43156b8ab8dfb2ac8230b7c06b96c101cbbc1f5703bd27a63fbcc928"
+    },
+    {
+      "version": "9.0.0",
+      "path": "classes/Tools.php",
+      "url": "https://raw.githubusercontent.com/PrestaShop/PrestaShop/9.0.0/classes/Tools.php",
+      "sha256": "b93c9c41fa7d234e4bde103dc88b274f2bdfdb6f1f0b57aee5e0a9f057ec64da"
+    },
+    {
+      "version": "9.0.0",
+      "path": "src/Core/Security/Hashing.php",
+      "url": "https://raw.githubusercontent.com/PrestaShop/PrestaShop/9.0.0/src/Core/Security/Hashing.php",
+      "sha256": "15dde78d43156b8ab8dfb2ac8230b7c06b96c101cbbc1f5703bd27a63fbcc928"
+    },
+    {
+      "version": "9.2.0",
+      "path": "classes/Tools.php",
+      "url": "https://raw.githubusercontent.com/PrestaShop/PrestaShop/9.2.0/classes/Tools.php",
+      "sha256": "3fa44b9804eae62aed100fe457fdaf04dc9331725ccdde246eb2a836f862be74"
+    },
+    {
+      "version": "9.2.0",
+      "path": "src/Core/Security/Hashing.php",
+      "url": "https://raw.githubusercontent.com/PrestaShop/PrestaShop/9.2.0/src/Core/Security/Hashing.php",
+      "sha256": "25b93a833549dbb057c0ee884e31f74575669024731f62b03c550d4575a59707"
+    }
+  ]
+}

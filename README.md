@@ -12,7 +12,7 @@ the customer pays.
 
 ## Requirements
 
-- PrestaShop 1.7.8 up to and including 8.x;
+- PrestaShop 1.7.8 up to and including 9.x;
 - PHP 7.4 or later with the `curl`, `hash`, `json` and `openssl` extensions;
 - an https storefront — `PS_SSL_ENABLED` on, and the shop URL served over TLS;
 - a Paymos account, with the project that should collect this shop's orders selected in the dashboard.
