@@ -29,7 +29,7 @@ final class FakePrestaShopStoreDb implements PaymosPrestaShop\DbInterface
 
     public function getValue($sql)
     {
-        return stripos((string) $sql, 'SHOW COLUMNS') !== false && $this->hasMarkerColumn ? 'paid_late_noted' : '';
+        return '';
     }
 
     public function getRow($sql)
@@ -39,6 +39,9 @@ final class FakePrestaShopStoreDb implements PaymosPrestaShop\DbInterface
 
     public function getRows($sql)
     {
+        if ($this->hasMarkerColumn && preg_match('/SHOW COLUMNS.+LIKE \'([^\']+)\'/', $sql, $match)) {
+            return array(array('Field' => $match[1]));
+        }
         return array();
     }
 

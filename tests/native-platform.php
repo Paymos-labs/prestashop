@@ -64,24 +64,42 @@ Module::resetStaticCache();
 $module = Module::getInstanceByName('paymos');
 check_native($module->active, 'Installed module reloads as active');
 check_native((int) Configuration::get('PAYMOS_OS_PENDING') > 0, 'Unpaid order state installed');
+// Exercise legacy upgrades against real SQL, while fixture tables are empty.
+$nativeDb = new PrestaShopDb();
+check_native($nativeDb->execute('ALTER TABLE `' . _DB_PREFIX_ . 'paymos_webhook_event` DROP COLUMN `owner_token`')
+    && $nativeDb->execute('ALTER TABLE `' . _DB_PREFIX_ . 'paymos_invoice` DROP COLUMN `paid_late_noted`'),
+    'Disposable empty tables emulate a legacy schema');
+check_native(\PaymosPrestaShop\Migrations::install($nativeDb), 'Native legacy schema upgrades');
+check_native(count($nativeDb->getRows('SHOW COLUMNS FROM `' . _DB_PREFIX_ . 'paymos_webhook_event` LIKE \'owner_token\'')) === 1
+    && count($nativeDb->getRows('SHOW COLUMNS FROM `' . _DB_PREFIX_ . 'paymos_invoice` LIKE \'paid_late_noted\'')) === 1,
+    'Both native legacy columns restored');
+check_native(\PaymosPrestaShop\Migrations::install($nativeDb), 'Native migration repeats safely');
 $context->controller = new AdminController('AdminModules');
 AdminController::$currentIndex = '/admin-dev/index.php?controller=AdminModules';
-$page = $module->getContent();
-check_native(strpos($page, 'controller=reconcile') !== false, 'Native admin settings render cron URL');
+check_native(strpos($module->getContent(), 'paymos-connect-button') !== false, 'Disconnected admin settings render Connect');
+// Simulate an approved Connect result using encrypted fixture credentials. This
+// exercises native storage/decryption; no real merchant or processing API exists.
+$fixtureCredentials = array(
+    'base_url' => 'https://api.paymos.invalid',
+    'api_key' => 'pk_test_native_fixture',
+    'api_secret' => 'sk_test_native_fixture',
+    'project_id' => 'prj_native_fixture',
+    'webhook_secret' => 'whsec_native_fixture',
+);
+check_native(Configuration::updateValue('PAYMOS_CREDENTIALS_V1', \Paymos\Plugin\AesGcmEnvelope::seal(
+    array('schema' => 1, 'environments' => array('sandbox' => $fixtureCredentials)),
+    (string) _COOKIE_KEY_, 'paymos-prestashop-credentials-v1'
+)), 'Encrypted fixture connection stored in native Configuration');
+$settings = $module->paymosSettings();
+check_native($settings['PAYMOS_SANDBOX_PROJECT_ID'] === 'prj_native_fixture', 'Module decrypts native fixture connection');
 $method = new ReflectionMethod($module, 'reconcileUrl');
 $url = $method->invoke($module);
+check_native(strpos($module->getContent(), htmlspecialchars($url, ENT_QUOTES, 'UTF-8')) !== false,
+    'Connected native admin settings render the escaped cron URL');
 parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
 check_native(isset($query['token']) && hash_equals(Tools::hash('paymos/reconcile'), $query['token']), 'Native cron URL uses the legacy-compatible token');
 file_put_contents('/tmp/paymos-native-cron-url', $url);
 
-$settings = array(
-    'PAYMOS_MODE' => 'sandbox',
-    'PAYMOS_SANDBOX_API_KEY' => 'pk_test_native_fixture',
-    'PAYMOS_SANDBOX_API_SECRET' => 'sk_test_native_fixture',
-    'PAYMOS_SANDBOX_PROJECT_ID' => 'prj_native_fixture',
-    'PAYMOS_SANDBOX_WEBHOOK_SECRET' => 'whsec_native_fixture',
-    'PAYMOS_SANDBOX_BASE_URL' => 'https://api.paymos.invalid',
-);
 $adapter = new PrestaShopAdapter();
 $db = new PrestaShopDb();
 $store = new InvoiceStore($db);
@@ -135,7 +153,8 @@ function native_order($module, $context)
     $options = $module->hookPaymentOptions(array('cart' => $cart));
     check_native(count($options) === 1 && $options[0] instanceof \PrestaShop\PrestaShop\Core\Payment\PaymentOption,
         'Checkout hook returns a native payment option');
-    check_native(strpos($options[0]->getAction(), 'controller=validation') !== false, 'Checkout targets module validation controller');
+    check_native($options[0]->getAction() === $context->link->getModuleLink('paymos', 'validation', array(), true),
+        'Checkout targets the native module validation controller URL');
     $module->validateOrder((int) $cart->id, (int) Configuration::get('PAYMOS_OS_PENDING'),
         $cart->getOrderTotal(), $module->displayName, null, array(), (int) $cart->id_currency, false, $customer->secure_key);
     $order = new Order((int) Order::getIdByCartId((int) $cart->id));

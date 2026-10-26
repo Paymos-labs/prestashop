@@ -59,6 +59,7 @@ require __DIR__ . '/InvoiceStorePaidLateNotedTest.php';
 require __DIR__ . '/CrashRecoveryTest.php';
 require __DIR__ . '/OrderMapperTest.php';
 require __DIR__ . '/PrestaShopDbTest.php';
+require __DIR__ . '/MigrationsTest.php';
 require __DIR__ . '/ReconcilerTest.php';
 require __DIR__ . '/PendingPageTest.php';
 require __DIR__ . '/RequirementsTest.php';
