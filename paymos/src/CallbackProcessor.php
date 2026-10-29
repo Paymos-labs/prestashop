@@ -49,16 +49,20 @@ final class CallbackProcessor
     /** @var callable|null */
     private $clientFactory;
 
+    private $refundAdapter;
+
     public function __construct(
         PrestaShopAdapterInterface $prestashop,
         InvoiceStoreInterface $invoiceStore,
         EventStoreInterface $eventStore,
-        ?callable $clientFactory = null
+        ?callable $clientFactory = null,
+        ?RefundAdapter $refundAdapter = null
     ) {
         $this->prestashop = $prestashop;
         $this->invoiceStore = $invoiceStore;
         $this->eventStore = $eventStore;
         $this->clientFactory = $clientFactory;
+        $this->refundAdapter = $refundAdapter;
     }
 
     /**
@@ -72,6 +76,14 @@ final class CallbackProcessor
                 ->process($signatureHeader, $rawBody, $now);
             $environment = $verified->environment();
             $event = $verified->event();
+
+            $data = $event->toArray()['data'] ?? array();
+            if (strpos($event->type(), 'withdrawal.') === 0 && !empty($data['invoice_id'])) {
+                if ($this->refundAdapter === null) { throw new \RuntimeException('refund_adapter_missing'); }
+                $this->refundAdapter->callback($data, $environment);
+                $this->commitEvent();
+                return new CallbackResult(200, 'OK');
+            }
 
             if (!$event->isInvoiceEvent()) {
                 $this->commitEvent();

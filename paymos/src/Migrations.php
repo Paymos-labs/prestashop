@@ -80,13 +80,25 @@ final class Migrations
             $db->execute('ALTER TABLE `' . $invoiceTable . '` ADD COLUMN `paid_late_noted` VARCHAR(128) NULL');
         }
 
+        RefundIntentStore::install($db);
+
         return true;
     }
 
     public static function uninstall($db)
     {
         $db->execute('DROP TABLE IF EXISTS `' . self::table(self::EVENTS_TABLE) . '`');
-        $db->execute('DROP TABLE IF EXISTS `' . self::table(self::INVOICES_TABLE) . '`');
+        $hasRefundHistory = false;
+        foreach (array('intent', 'unbound') as $name) {
+            $table = self::table('paymos_refund_' . $name);
+            if (count($db->getRows('SHOW TABLES LIKE \'' . $db->escape($table) . '\'')) > 0
+                && count($db->getRows('SELECT * FROM `' . $table . '` LIMIT 1')) > 0) {
+                $hasRefundHistory = true;
+            }
+        }
+        if (!$hasRefundHistory) {
+            $db->execute('DROP TABLE IF EXISTS `' . self::table(self::INVOICES_TABLE) . '`');
+        }
 
         return true;
     }

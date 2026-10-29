@@ -62,7 +62,7 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.4.13';
+        $this->version = '1.5.0';
         $this->author = 'Paymos';
         $this->need_instance = 0;
         // A fixed maximum: the Addons validator rejects 'compatible with whatever is
@@ -97,6 +97,10 @@ class Paymos extends PaymentModule
         }
 
         if (!$this->registerHook('paymentOptions') || !$this->registerHook('paymentReturn')) {
+            return false;
+        }
+
+        if (!$this->ensureRefundHooks()) {
             return false;
         }
 
@@ -179,6 +183,24 @@ class Paymos extends PaymentModule
 
     public function getContent()
     {
+        $this->ensureRefundHooks();
+        $refundOutput = '';
+        if (Tools::isSubmit('paymosRefund')) {
+            try {
+                $orderId = (int) Tools::getValue('paymos_order_id');
+                $this->assertRefundPermission($orderId);
+                foreach (array('amount', 'currency', 'network', 'address', 'destination_address', 'parts') as $field) {
+                    if (Tools::getValue($field) !== false) {
+                        throw new \RuntimeException('refund_mode_only');
+                    }
+                }
+                $intent = \PaymosPrestaShop\RefundAdapter::forModule($this)->request($orderId,
+                    (string) Tools::getValue('paymos_refund_mode'), (string) Tools::getValue('paymos_refund_token'));
+                $refundOutput = '<div class="panel">' . $this->l('Refund requested through Paymos. Status:') . ' <code>' . htmlspecialchars($intent->cashState(), ENT_QUOTES, 'UTF-8') . '</code></div>';
+            } catch (\Throwable $exception) {
+                $refundOutput = $this->displayError($this->l('The refund request did not complete. Check the refunds listed below before you try again.'));
+            }
+        }
         if (Tools::isSubmit('paymosConnectStart')) {
             $this->connectJson($this->startConnection());
         }
@@ -200,7 +222,8 @@ class Paymos extends PaymentModule
             }
         }
 
-        return $output . $this->renderConnect() . $this->renderConfigStatus() . $this->renderForm();
+        return $refundOutput . $output . $this->renderConnect() . $this->renderConfigStatus() . $this->renderForm()
+            . $this->refundPanel((int) Tools::getValue('paymos_order_id'));
     }
 
     private function installOrderStates()
@@ -458,7 +481,8 @@ class Paymos extends PaymentModule
                 if ($result['plugin'] !== 'prestashop' || rtrim((string) $result['source_url'], '/') !== $this->sourceUrl()) {
                     throw new \RuntimeException('Paymos connection response does not match this shop.');
                 }
-                $this->saveProtected('PAYMOS_CREDENTIALS_V1', array('schema' => 1, 'environments' => $result['credentials']), 'paymos-prestashop-credentials-v1');
+                $this->saveProtected('PAYMOS_CREDENTIALS_V1', array('schema' => 1,
+                    'environments' => \Paymos\Plugin\CredentialSet::normalize($result['credentials'])), 'paymos-prestashop-credentials-v1');
                 Configuration::deleteByName('PAYMOS_CONNECT_STATE_V1');
                 Config::resetForTests();
                 return array('status' => 'connected');
@@ -495,7 +519,9 @@ class Paymos extends PaymentModule
 
     private function saveProtected($key, array $payload, $aad)
     {
-        Configuration::updateValue($key, \Paymos\Plugin\AesGcmEnvelope::seal($payload, $this->keyMaterial(), $aad));
+        if (!Configuration::updateValue($key, \Paymos\Plugin\AesGcmEnvelope::seal($payload, $this->keyMaterial(), $aad))) {
+            throw new \RuntimeException($this->l('PrestaShop could not save the Paymos connection. Click Connect Paymos to try again.'));
+        }
     }
 
     private function loadProtected($key, $aad)
@@ -512,5 +538,132 @@ class Paymos extends PaymentModule
     public function paymosSettings()
     {
         return $this->currentSettings();
+    }
+
+    public function paymosRefundCredentials($environment)
+    {
+        $payload = $this->loadProtected('PAYMOS_CREDENTIALS_V1', 'paymos-prestashop-credentials-v1');
+        $values = \Paymos\Plugin\CredentialSet::normalize($payload['environments'] ?? array());
+        return $values[$environment] ?? array();
+    }
+
+    private function ensureRefundHooks()
+    {
+        foreach (array('displayAdminOrderMain', 'actionOrderSlipAdd', 'actionEmailSendBefore') as $hook) {
+            if (!$this->isRegisteredInHook($hook) && !$this->registerHook($hook)) { return false; }
+        }
+        return true;
+    }
+
+    public function assertRefundPermission($orderId)
+    {
+        $employee = $this->context->employee;
+        $access = $employee && $employee->isLoggedBack()
+            ? Profile::getProfileAccess((int) $employee->id_profile, (int) Tab::getIdFromClassName('AdminOrders')) : array();
+        $order = new Order((int) $orderId);
+        if (!$this->active || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || empty($access['edit'])
+            || !hash_equals(Tools::getAdminTokenLite('AdminModules'), (string) Tools::getValue('paymos_refund_csrf'))
+            || !Validate::isLoadedObject($order) || $order->module !== 'paymos'
+            || Shop::getContext() !== Shop::CONTEXT_SHOP || (int) $order->id_shop !== (int) $this->context->shop->id) {
+            throw new \RuntimeException('refund_admin_forbidden');
+        }
+    }
+
+    public function paymosNativeRefund($orderId, $command)
+    {
+        $this->assertRefundPermission($orderId);
+        $db = new \PaymosPrestaShop\RefundDatabase();
+        \PaymosPrestaShop\RefundIntentStore::install($db);
+        $store = new \PaymosPrestaShop\RefundIntentStore($db);
+        $native = new \PaymosPrestaShop\RefundNativePlatform($store);
+        $draft = $native->commandDraft($command, $native->snapshot((int) $orderId));
+        return \PaymosPrestaShop\RefundAdapter::forModule($this)->request((int) $orderId, 'full',
+            (string) Tools::getValue('paymos_refund_token'), $draft);
+    }
+
+    public function hookDisplayAdminOrderMain($params)
+    {
+        return $this->refundPanel((int) ($params['id_order'] ?? 0));
+    }
+
+    public function hookActionOrderSlipAdd($params)
+    {
+        \PaymosPrestaShop\RefundNativePlatform::captureSlip($params);
+    }
+
+    public function hookActionEmailSendBefore($params)
+    {
+        return \PaymosPrestaShop\RefundNativePlatform::captureMail($params);
+    }
+
+    private function refundPanel($orderId)
+    {
+        $escape = static function ($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); };
+        $base = $this->context->link->getAdminLink('AdminModules') . '&configure=paymos';
+        if ($orderId <= 0) {
+            return '<form method="get" action="' . $escape($base) . '"><input type="hidden" name="controller" value="AdminModules">'
+                . '<input type="hidden" name="configure" value="paymos"><input type="hidden" name="token" value="' . $escape(Tools::getAdminTokenLite('AdminModules')) . '">'
+                . '<label>' . $this->l('Order ID') . ' <input type="number" name="paymos_order_id" min="1" required></label><button>' . $this->l('Show refunds') . '</button></form>';
+        }
+        $order = new Order($orderId);
+        $employee = $this->context->employee;
+        $access = $employee && $employee->isLoggedBack()
+            ? Profile::getProfileAccess((int) $employee->id_profile, (int) Tab::getIdFromClassName('AdminOrders')) : array();
+        if (!Validate::isLoadedObject($order) || $order->module !== 'paymos'
+            || empty($access['view']) || Shop::getContext() !== Shop::CONTEXT_SHOP
+            || (int) $order->id_shop !== (int) $this->context->shop->id) { return ''; }
+        try {
+            $db = new \PaymosPrestaShop\RefundDatabase();
+            \PaymosPrestaShop\RefundIntentStore::install($db);
+            $store = new \PaymosPrestaShop\RefundIntentStore($db);
+            $token = \PaymosPrestaShop\RefundIntentStore::uuid();
+            $history = '';
+            $pendingMode = null;
+            $blocked = false;
+            foreach ($store->forPayment('prestashop:' . $orderId) as $intent) {
+                $history .= '<li><code>' . $escape($intent->operationId()) . ' ' . $escape($intent->mode()) . ' '
+                    . $escape($intent->cashState()) . ' ' . $escape($intent->projectionState()) . '</code>';
+                if ($intent->observation() !== null) {
+                    $history .= ' <code>' . $escape($intent->observation()->principalDecimal()) . ' '
+                        . $escape($intent->observation()->currency() . '/' . $intent->observation()->network()) . '</code>';
+                }
+                $history .= ' <code>' . $escape($intent->toArray()['review_reason'] ?? '') . ' '
+                    . $escape(json_encode($intent->toArray()['effects'])) . '</code>';
+                $history .= '</li>';
+                if (in_array($intent->cashState(), array('unknown', 'not_submitted', 'created', 'processing'), true)) {
+                    $token = $intent->toArray()['request_token'];
+                    $pendingMode = $intent->mode();
+                }
+                if ($intent->projectionState() === 'native_review' || ($intent->mode() === 'full' && $intent->cashState() === 'completed')) { $blocked = true; }
+            }
+            foreach ($store->unboundForPayment('prestashop:' . $orderId) as $unbound) {
+                $cash = $store->decode($unbound['payload']);
+                $history .= '<li><code>' . $escape($unbound['withdrawal_id']) . ' ' . $escape($cash['mode']) . ' '
+                    . $escape($cash['status']) . ' ' . $escape($unbound['review_reason'] ?? '') . '</code></li>';
+                if ($unbound['review_reason'] !== null) { $blocked = true; }
+            }
+            $summary = array();
+            try { $summary = \PaymosPrestaShop\RefundAdapter::forModule($this)->preview($orderId); } catch (\Throwable $exception) { $history .= '<li>' . $this->l('Refunds through Paymos are not available for this order right now. If this happens on every order, reconnect the module with Connect Paymos in its settings.') . '</li>'; }
+            $disabled = array();
+            foreach (array('full', 'overpayment') as $mode) {
+                $allowed = $pendingMode !== null ? $pendingMode === $mode : !empty($summary['can_refund_' . $mode]);
+                $disabled[$mode] = !$blocked && $allowed && !empty($access['edit']) ? '' : ' disabled';
+            }
+            $csrf = Tools::getAdminTokenLite('AdminModules');
+            return '<div class="panel"><h3>' . $this->l('Paymos refunds') . '</h3><p>'
+                . $this->l('Full refund:') . ' <code>' . $escape($summary['full_refund_amount'] ?? '') . '</code><br>'
+                . $this->l('Overpayment refund:') . ' <code>' . $escape($summary['overpayment_refund_amount'] ?? '') . '</code><br>'
+                . $this->l('Recipient (sender of the first payment):') . ' <code>' . $escape($summary['sender_address'] ?? '') . '</code>'
+                . '</p><ul>' . $history . '</ul><form method="post" action="' . $escape($base) . '">'
+                . '<input type="hidden" name="paymosRefund" value="1"><input type="hidden" name="paymos_order_id" value="' . $orderId . '">'
+                . '<input type="hidden" name="paymos_refund_token" value="' . $escape($token) . '">'
+                . '<input type="hidden" name="paymos_refund_csrf" value="' . $escape($csrf) . '">'
+                . '<button name="paymos_refund_mode" value="full"' . $disabled['full'] . '>' . $this->l('Refund in full') . '</button> '
+                . '<button name="paymos_refund_mode" value="overpayment"' . $disabled['overpayment'] . '>' . $this->l('Refund overpayment') . '</button></form></div>'
+                . '<script>(function(){var p=' . json_encode(array('paymos_refund_token' => $token, 'paymos_refund_csrf' => $csrf)) . ';'
+                . 'document.addEventListener("submit",function(ev){var f=ev.target;if(!f.querySelector("[name^=cancel_product],[name^=partial_refund]"))return;'
+                . 'Object.keys(p).forEach(function(k){var e=f.querySelector("[name="+k+"]")||document.createElement("input");'
+                . 'e.type="hidden";e.name=k;e.value=p[k];f.appendChild(e);});},true);})();</script>';
+        } catch (\Throwable $exception) { return '<div class="panel">' . $this->l('Paymos refunds could not be loaded. Reload the page to try again.') . '</div>'; }
     }
 }

@@ -26,11 +26,14 @@ final class Reconciler
     /** @var callable|null */
     private $clientFactory;
 
-    public function __construct(InvoiceStoreInterface $store, PrestaShopAdapterInterface $prestashop, ?callable $clientFactory = null)
+    private $refundAdapter;
+
+    public function __construct(InvoiceStoreInterface $store, PrestaShopAdapterInterface $prestashop, ?callable $clientFactory = null, ?RefundAdapter $refundAdapter = null)
     {
         $this->store = $store;
         $this->prestashop = $prestashop;
         $this->clientFactory = $clientFactory;
+        $this->refundAdapter = $refundAdapter;
     }
 
     /**
@@ -67,7 +70,7 @@ final class Reconciler
             }
         }
 
-        return $count;
+        return $count + ($this->refundAdapter === null ? 0 : $this->refundAdapter->run());
     }
 
     /**
