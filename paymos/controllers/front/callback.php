@@ -38,7 +38,9 @@ class PaymosCallbackModuleFrontController extends ModuleFrontController
             $result = (new \PaymosPrestaShop\CallbackProcessor(
                 new \PaymosPrestaShop\PrestaShopAdapter(),
                 new \PaymosPrestaShop\InvoiceStore(new \PaymosPrestaShop\PrestaShopDb()),
-                new \PaymosPrestaShop\EventStore(new \PaymosPrestaShop\PrestaShopDb())
+                new \PaymosPrestaShop\EventStore(new \PaymosPrestaShop\PrestaShopDb()),
+                null,
+                \PaymosPrestaShop\RefundAdapter::forModule($this->module)
             ))->handle($rawBody === false ? '' : $rawBody, $signature, $this->module->paymosSettings());
 
             $this->respond($result->statusCode(), $result->body());

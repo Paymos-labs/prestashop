@@ -49,7 +49,9 @@ if (PHP_SAPI !== 'cli') {
 try {
     $count = (new \PaymosPrestaShop\Reconciler(
         new \PaymosPrestaShop\InvoiceStore(new \PaymosPrestaShop\PrestaShopDb()),
-        new \PaymosPrestaShop\PrestaShopAdapter()
+        new \PaymosPrestaShop\PrestaShopAdapter(),
+        null,
+        \PaymosPrestaShop\RefundAdapter::forModule($module)
     ))->run($module->paymosSettings());
 
     echo 'Paymos reconcile complete. Orders updated: ' . (int) $count . "\n";

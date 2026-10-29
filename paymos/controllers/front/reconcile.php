@@ -52,7 +52,9 @@ class PaymosReconcileModuleFrontController extends ModuleFrontController
 
             $count = (new \PaymosPrestaShop\Reconciler(
                 new \PaymosPrestaShop\InvoiceStore(new \PaymosPrestaShop\PrestaShopDb()),
-                new \PaymosPrestaShop\PrestaShopAdapter()
+                new \PaymosPrestaShop\PrestaShopAdapter(),
+                null,
+                \PaymosPrestaShop\RefundAdapter::forModule($this->module)
             ))->run($this->module->paymosSettings());
 
             $this->respond(200, 'Paymos reconcile complete. Orders updated: ' . (int) $count . "\n");

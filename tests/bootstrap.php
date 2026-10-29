@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 require __DIR__ . '/stubs/prestashop.php';
+require __DIR__ . '/stubs/refund.php';
 
 // PrestaShop defines this before any module file loads.
 if (!defined('_PS_VERSION_')) {

@@ -64,6 +64,7 @@ require __DIR__ . '/ReconcilerTest.php';
 require __DIR__ . '/PendingPageTest.php';
 require __DIR__ . '/RequirementsTest.php';
 require __DIR__ . '/DescriptionCatalogTest.php';
+require __DIR__ . '/RefundAdapterTest.php';
 
 $count = 0;
 

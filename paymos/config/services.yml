@@ -1,0 +1,7 @@
+services:
+  paymos.refund_command_bus:
+    class: PaymosPrestaShop\RefundCommandBus
+    decorates: prestashop.core.command_bus
+    public: true
+    arguments:
+      - '@paymos.refund_command_bus.inner'
