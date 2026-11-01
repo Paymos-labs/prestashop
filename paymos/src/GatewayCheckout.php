@@ -60,7 +60,6 @@ final class GatewayCheckout
             'amount' => (string) $amount,
             'currency' => strtoupper((string) $currency),
             'external_order_id' => (string) $externalOrderId,
-            'allow_multiple_payments' => true,
         );
 
         $clientId = trim((string) $clientId);

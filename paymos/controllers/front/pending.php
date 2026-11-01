@@ -56,7 +56,7 @@ class PaymosPendingModuleFrontController extends ModuleFrontController
         // a blocked invoice replacement (validation.php's explicit flag — the
         // manual-review state alone is ambiguous, BUG-190), or the neutral
         // "processing" text with a resume link for a buyer who closed the Paymos
-        // checkout too soon (allow_multiple_payments is true and the invoice TTL is
+        // checkout too soon (partial payments remain open while the invoice TTL is
         // server-side, so re-offering the stored, still open invoice is safe).
         $invoice = null;
         try {
