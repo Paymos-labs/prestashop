@@ -99,12 +99,31 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             $invoice = $client->invoices()->get($snapshot['invoice_id']);
             if (($invoice['invoice_id'] ?? '') !== $snapshot['invoice_id'] || ($invoice['project_id'] ?? '') !== $snapshot['project_id']
                 || ($invoice['is_test'] ?? null) !== ($snapshot['environment'] === 'sandbox')
-                || !is_array($invoice['refund_summary'] ?? null)) { throw new \RuntimeException('refund_summary_scope_invalid'); }
-            $summary = $invoice['refund_summary'];
+                || (array_key_exists('refund_summary', $invoice) && !is_array($invoice['refund_summary']))) { throw new \RuntimeException('refund_summary_scope_invalid'); }
+            $summary = $this->invoiceSummary($invoice);
             $summary['can_refund_full'] = CredentialSet::refundsEnabled($values) && ($summary['can_refund_full'] ?? false) === true;
             $summary['can_refund_overpayment'] = CredentialSet::refundsEnabled($values) && ($summary['can_refund_overpayment'] ?? false) === true;
             return $summary;
         });
+    }
+
+    private function invoiceSummary(array $invoice): array
+    {
+        if (array_key_exists('refund_summary', $invoice)) {
+            return is_array($invoice['refund_summary']) ? $invoice['refund_summary'] : array();
+        }
+        $status = isset($invoice['status']) && is_string($invoice['status']) ? $invoice['status'] : '';
+        $payment = isset($invoice['payment']) && is_array($invoice['payment']) ? $invoice['payment'] : array();
+        $paid = in_array($status, array('paid', 'paid_over'), true);
+        $overpaid = $status === 'paid_over';
+        return array(
+            'can_refund_full' => $paid,
+            'can_refund_overpayment' => $overpaid,
+            'full_refund_amount' => isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : ($paid ? (string) ($invoice['order']['amount'] ?? '0') : '0'),
+            'overpayment_refund_amount' => $overpaid && isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : '0',
+            'refund_asset' => isset($payment['currency'], $payment['network'])
+                ? array('currency' => $payment['currency'], 'network' => $payment['network']) : null,
+        );
     }
 
     public function preflight(RefundIntent $intent): ?string
