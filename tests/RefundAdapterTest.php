@@ -562,6 +562,12 @@ function test_prestashop_refund_preview_is_readonly_and_capability_scoped()
     prestashop_refund_throws(static function () use ($adapter) { $adapter->preview(42); }, 'refund_reconnect_required');
     assertSameValue($before, count($transport->requests), 'Even preview has no HTTP without capability.');
     $credentials->values['capabilities'] = array('invoice_refunds_v1');
+    unset($transport->invoiceExtra['refund_summary']);
+    $transport->invoiceExtra['status'] = 'paid_over';
+    $transport->invoiceExtra['payment'] = array('currency' => 'USDT', 'network' => 'Tron', 'paid' => '120');
+    $derived = $adapter->preview(42);
+    assertTrueValue($derived['can_refund_full'], 'Preview derives full eligibility when refund_summary is omitted.');
+    assertTrueValue($derived['can_refund_overpayment'], 'Preview derives overpayment eligibility when refund_summary is omitted.');
     $transport->invoiceExtra['project_id'] = 'prj_foreign';
     prestashop_refund_throws(static function () use ($adapter) { $adapter->preview(42); }, 'refund_summary_scope_invalid');
 }
