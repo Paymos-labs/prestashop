@@ -139,6 +139,32 @@ still in force. There are two ways to trigger it:
   files under `modules/` and a cron pointed at the script itself would get a 403;
 - from the shell, `php modules/paymos/cron/reconcile.php`, which needs no token.
 
+Each reconciliation run also checks pending Paymos refunds alongside unresolved
+invoices.
+
+## Refunds
+
+The module supports native refunds through the Paymos Merchant API (`/v1/refunds`)
+in two server-calculated modes: `full` (full invoice refund) and `overpayment`
+(refund of the excess on a `paid_over` invoice). Funds are sent as a new outbound
+blockchain transfer strictly to the verified `first_sender` address recorded by
+Paymos on the paid invoice — no recipient wallet address is entered manually, and
+arbitrary partial refund amounts are not supported.
+
+In the PrestaShop back office, employees with edit permission on **Orders** can
+initiate refunds from:
+
+- the **Paymos refunds** panel on the order detail page (`displayAdminOrderMain`,
+  also reachable by order ID on **Module Manager → Paymos → Configure**), with
+  **Refund in full** and **Refund overpayment** actions showing the verified
+  `first_sender` address and operation history;
+- PrestaShop's native full order refund flow (`paymosNativeRefund`).
+
+Order slips and customer refund emails are held until the Paymos refund reaches
+`completed` and is verified against the Merchant API via the callback controller or
+the `reconcile` endpoint / CLI script. In Sandbox mode, terminal refund outcomes
+(`completed`, `failed`, `cancelled`) can be simulated for end-to-end testing.
+
 ## Troubleshooting
 
 **Connect refuses an http shop URL.** Enable `PS_SSL_ENABLED` and make sure the
@@ -163,10 +189,6 @@ Paymos dashboard first. Settle either case by hand.
 **Paymos is not offered at checkout.** It hides itself when the cart's currency is
 not among the module's permitted currencies, and when the active environment is not
 fully connected. Check the currency restrictions first, then the connection panel.
-
-**Refunding a customer.** A confirmed on-chain payment has no reversal. Send a
-withdrawal from your Paymos balance to the address you agreed with the customer, and
-record the credit slip in PrestaShop separately.
 
 - [Documentation](https://paymos.io/docs/cms-prestashop)
 - [Source](https://github.com/paymos-labs/prestashop)

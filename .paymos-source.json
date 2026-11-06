@@ -1,6 +1,6 @@
 {
   "source_repository": "shockk73/paymos",
   "source_path": "plugins/prestashop-paymos",
-  "source_commit": "2cd0093b271cbe762d4f4861107c348b309b7295",
-  "version": "1.6.2"
+  "source_commit": "60cf9fcdb58049e7ca9aadfd44b201c00c522bfe",
+  "version": "1.6.3"
 }
