@@ -8,6 +8,12 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-11-06
+
+- fix(cms): align marketplace manifests, refund copy, store links, and release guards
+- chore: bundle Paymos PHP SDK v1.9.1
+- chore: rebuild canonical CMS package
+
 ## [1.6.2] - 2026-11-03
 
 - fix(plugins): update php-sdk pin in PrestaShop/Drupal CI and fix clippy struct_field_names in Rust SDK
