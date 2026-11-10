@@ -51,3 +51,21 @@ $_MODULE['<{paymos}prestashop>paymos_362ee7b3e7634961aa1d5d3b4e1d4538'] = 'Empf�
 $_MODULE['<{paymos}prestashop>paymos_38995d461e458baebc1faa96b64a0820'] = 'Vollständige Rückerstattung beantragen';
 $_MODULE['<{paymos}prestashop>paymos_9d96e8bf6f6894b85b04a102d3c6badf'] = 'Rückerstattung der Überzahlung beantragen';
 $_MODULE['<{paymos}prestashop>paymos_6ff346e545d15a1ca0e34e884fea145b'] = 'Die Liste der Paymos-Rückerstattungen konnte nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen.';
+
+$_MODULE['<{paymos}prestashop>paymos_a05cd9dc93bfe1982b7a03b94f88f408'] = 'Paymos verbinden';
+
+$_MODULE['<{paymos}prestashop>paymos_b01f6623e7096991281c11ae42e0d1f8'] = 'Verbindet genau diese Shop-URL mit dem aktuell in Paymos ausgewählten Projekt.';
+
+$_MODULE['<{paymos}prestashop>paymos_3a23dd39b73203c7acb8c6ed816c70ca'] = 'Verbinden Sie diesen Shop mit Paymos.';
+
+$_MODULE['<{paymos}prestashop>paymos_16792b909c3ff4e12a43b97f78e6a497'] = 'Sichere Verbindung wird gestartet…';
+
+$_MODULE['<{paymos}prestashop>paymos_e4bebcb12ce5784e29a60791e70058c1'] = 'Warten auf Freigabe. Code: ';
+
+$_MODULE['<{paymos}prestashop>paymos_335bf8449e7be15614a69479f4127ae3'] = 'Freigabeseite öffnen';
+
+$_MODULE['<{paymos}prestashop>paymos_d94ea026a28480f0b82672d32ca6ff29'] = 'Ihr Browser hat den Freigabe-Tab blockiert. ';
+
+$_MODULE['<{paymos}prestashop>paymos_9612e7282b082a190e6b3f38c5286b89'] = ' Code: ';
+
+$_MODULE['<{paymos}prestashop>paymos_b863b9e874093489a4bfa66b9a414960'] = 'Paymos berechnet den Betrag vor dem Versand der Erstattung.';

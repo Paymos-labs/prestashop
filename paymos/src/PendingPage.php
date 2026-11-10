@@ -65,7 +65,7 @@ final class PendingPage
      */
     private static function isResumable($status)
     {
-        $final = array('paid', 'paid_over', 'underpaid', 'expired', 'cancelled');
+        $final = array('paid', 'paid_over', 'underpaid', 'expired', 'cancelled', 'creating');
 
         return $status !== '' && !in_array(strtolower(trim($status)), $final, true);
     }

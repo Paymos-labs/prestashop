@@ -51,3 +51,21 @@ $_MODULE['<{paymos}prestashop>paymos_362ee7b3e7634961aa1d5d3b4e1d4538'] = 'По�
 $_MODULE['<{paymos}prestashop>paymos_38995d461e458baebc1faa96b64a0820'] = 'Запросить полный возврат';
 $_MODULE['<{paymos}prestashop>paymos_9d96e8bf6f6894b85b04a102d3c6badf'] = 'Запросить возврат переплаты';
 $_MODULE['<{paymos}prestashop>paymos_6ff346e545d15a1ca0e34e884fea145b'] = 'Не удалось загрузить список возвратов Paymos. Обновите страницу и попробуйте снова.';
+
+$_MODULE['<{paymos}prestashop>paymos_a05cd9dc93bfe1982b7a03b94f88f408'] = 'Подключить Paymos';
+
+$_MODULE['<{paymos}prestashop>paymos_b01f6623e7096991281c11ae42e0d1f8'] = 'Подключает этот адрес магазина к проекту, выбранному в Paymos.';
+
+$_MODULE['<{paymos}prestashop>paymos_3a23dd39b73203c7acb8c6ed816c70ca'] = 'Подключите магазин к Paymos.';
+
+$_MODULE['<{paymos}prestashop>paymos_16792b909c3ff4e12a43b97f78e6a497'] = 'Подключаем магазин…';
+
+$_MODULE['<{paymos}prestashop>paymos_e4bebcb12ce5784e29a60791e70058c1'] = 'Ожидаем подтверждения. Код: ';
+
+$_MODULE['<{paymos}prestashop>paymos_335bf8449e7be15614a69479f4127ae3'] = 'Открыть страницу подтверждения';
+
+$_MODULE['<{paymos}prestashop>paymos_d94ea026a28480f0b82672d32ca6ff29'] = 'Браузер заблокировал вкладку подтверждения. ';
+
+$_MODULE['<{paymos}prestashop>paymos_9612e7282b082a190e6b3f38c5286b89'] = ' Код: ';
+
+$_MODULE['<{paymos}prestashop>paymos_b863b9e874093489a4bfa66b9a414960'] = 'Paymos рассчитает сумму перед отправкой возврата.';

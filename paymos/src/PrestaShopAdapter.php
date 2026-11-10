@@ -17,6 +17,36 @@ namespace PaymosPrestaShop;
  */
 final class PrestaShopAdapter implements PrestaShopAdapterInterface
 {
+    private $orderLock = '';
+
+    public function withOrderLock($orderId, callable $operation)
+    {
+        $db = \Db::getInstance();
+        $name = 'paymos_ps_' . substr(hash('sha256', _DB_PREFIX_ . ':' . (int) $orderId), 0, 48);
+        if ($this->orderLock !== '') {
+            throw new \RuntimeException('Nested Paymos order lock is not supported.');
+        }
+        if ((string) $db->getValue("SELECT GET_LOCK('" . pSQL($name) . "', 0)", false) !== '1') {
+            throw new \Paymos\Exception\EventInProgressException('Paymos PrestaShop order is busy.');
+        }
+        $this->orderLock = $name;
+        try {
+            return $operation();
+        } finally {
+            $this->orderLock = '';
+            $db->getValue("SELECT RELEASE_LOCK('" . pSQL($name) . "')", false);
+        }
+    }
+
+    public function assertOrderLockOwned()
+    {
+        if ($this->orderLock !== '' && (string) \Db::getInstance()->getValue(
+            "SELECT IS_USED_LOCK('" . pSQL($this->orderLock) . "') = CONNECTION_ID()", false
+        ) !== '1') {
+            throw new \RuntimeException('Paymos PrestaShop order lock was lost.');
+        }
+    }
+
     /** Logical action key → PrestaShop Configuration key holding the state id. */
     private const STATE_KEYS = array(
         'pending' => 'PAYMOS_OS_PENDING',
@@ -62,32 +92,48 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
 
     public function setOrderState($orderId, $orderStateId)
     {
+        $this->assertOrderLockOwned();
         $orderId = (int) $orderId;
         $orderStateId = (int) $orderStateId;
         if ($orderStateId <= 0) {
-            return;
+            throw new \RuntimeException('Paymos target order state is not configured.');
+        }
+        if (!\Validate::isLoadedObject(new \OrderState($orderStateId))) {
+            throw new \RuntimeException('Paymos target order state was not found.');
         }
 
         $order = new \Order($orderId);
         if (!\Validate::isLoadedObject($order)) {
-            return;
+            throw new \RuntimeException('PrestaShop order was not found.');
         }
 
         // No-op if the order is already in the target state (avoids duplicate
         // history rows when the server re-delivers the same terminal event).
-        if ((int) $order->getCurrentState() === $orderStateId) {
+        $alreadyInState = (int) $order->getCurrentState() === $orderStateId;
+        $lastHistoryState = (int) \Db::getInstance()->getValue('SELECT id_order_state FROM `' . _DB_PREFIX_
+            . 'order_history` WHERE id_order = ' . $orderId . ' ORDER BY id_order_history DESC', false);
+        if ($alreadyInState && $lastHistoryState === $orderStateId) {
             return;
         }
 
         $history = new \OrderHistory();
         $history->id_order = $orderId;
+        $history->id_order_state = $orderStateId;
         // 2-arg form: do not reuse an existing payment — a hosted-checkout order
         // created in the awaiting state has no OrderPayment yet, so the paid
         // transition records one. addWithemail($autodate = true): always date the
         // history row; the buyer email is driven by the target OrderState's
         // send_email flag, not an argument here.
-        $history->changeIdOrderState($orderStateId, $order);
-        $history->addWithemail(true);
+        if (!$alreadyInState) {
+            $history->changeIdOrderState($orderStateId, $order);
+        }
+        if (!$history->addWithemail(true)) {
+            throw new \RuntimeException('PrestaShop order history could not be saved.');
+        }
+        $savedOrder = new \Order($orderId);
+        if (!\Validate::isLoadedObject($savedOrder) || (int) $savedOrder->getCurrentState() !== $orderStateId) {
+            throw new \RuntimeException('PrestaShop order state was not persisted.');
+        }
     }
 
     public function orderStateId($actionKey)
@@ -109,9 +155,10 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
 
     public function addOrderNote($orderId, $note)
     {
+        $this->assertOrderLockOwned();
         $order = new \Order((int) $orderId);
         if (!\Validate::isLoadedObject($order)) {
-            return;
+            throw new \RuntimeException('PrestaShop order for note was not found.');
         }
 
         $message = new \Message();
@@ -120,7 +167,9 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
         $message->id_cart = (int) $order->id_cart;
         $message->id_customer = (int) $order->id_customer;
         $message->private = 1;
-        $message->add();
+        if (!$message->add()) {
+            throw new \RuntimeException('PrestaShop order note could not be saved.');
+        }
     }
 
     public function log($message, array $context = array())

@@ -56,7 +56,13 @@ namespace {
         public $module = 'paymos';
         public static $shopId = 1;
         public function __construct($id) { $this->id = $id; $this->id_shop = self::$shopId; }
+        public function hasBeenPaid() { return true; }
+        public function hasBeenDelivered() { return false; }
     }
+
+    class Customer { public $id_default_group = 1; public function __construct($id) {} }
+    class Group { public static function getPriceDisplayMethod($id) { return 0; } }
+    if (!defined('PS_TAX_INC')) { define('PS_TAX_INC', 0); }
 
     class Validate
     {

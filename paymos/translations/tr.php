@@ -51,3 +51,21 @@ $_MODULE['<{paymos}prestashop>paymos_362ee7b3e7634961aa1d5d3b4e1d4538'] = 'Alıc
 $_MODULE['<{paymos}prestashop>paymos_38995d461e458baebc1faa96b64a0820'] = 'Tam iade talep et';
 $_MODULE['<{paymos}prestashop>paymos_9d96e8bf6f6894b85b04a102d3c6badf'] = 'Fazla ödeme iadesi talep et';
 $_MODULE['<{paymos}prestashop>paymos_6ff346e545d15a1ca0e34e884fea145b'] = 'Paymos iade listesi yüklenemedi. Tekrar denemek için sayfayı yenileyin.';
+
+$_MODULE['<{paymos}prestashop>paymos_a05cd9dc93bfe1982b7a03b94f88f408'] = 'Paymos’a bağlan';
+
+$_MODULE['<{paymos}prestashop>paymos_b01f6623e7096991281c11ae42e0d1f8'] = 'Bu mağaza adresini Paymos’ta seçili projeye bağlar.';
+
+$_MODULE['<{paymos}prestashop>paymos_3a23dd39b73203c7acb8c6ed816c70ca'] = 'Bu mağazayı Paymos’a bağlayın.';
+
+$_MODULE['<{paymos}prestashop>paymos_16792b909c3ff4e12a43b97f78e6a497'] = 'Güvenli bağlantı başlatılıyor…';
+
+$_MODULE['<{paymos}prestashop>paymos_e4bebcb12ce5784e29a60791e70058c1'] = 'Onay bekleniyor. Kod: ';
+
+$_MODULE['<{paymos}prestashop>paymos_335bf8449e7be15614a69479f4127ae3'] = 'Onay sayfasını aç';
+
+$_MODULE['<{paymos}prestashop>paymos_d94ea026a28480f0b82672d32ca6ff29'] = 'Tarayıcınız onay sekmesini engelledi. ';
+
+$_MODULE['<{paymos}prestashop>paymos_9612e7282b082a190e6b3f38c5286b89'] = ' Kod: ';
+
+$_MODULE['<{paymos}prestashop>paymos_b863b9e874093489a4bfa66b9a414960'] = 'Tutar, iade gönderilmeden önce Paymos tarafından hesaplanır.';

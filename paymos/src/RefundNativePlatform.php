@@ -91,10 +91,19 @@ final class RefundNativePlatform
         if (count($rows) !== 1 || $rows[0]['module'] !== 'paymos') { throw new \RuntimeException('refund_order_mapping_invalid'); }
         $order = $rows[0];
         $mapping = $db->getRows('SELECT * FROM `' . Migrations::table('paymos_invoice') . '` WHERE `id_order` = ' . $orderId);
-        if (count($mapping) !== 1 || !in_array($mapping[0]['status'], array('paid', 'paid_over'), true)) {
+        $paidMappings = array();
+        foreach ($mapping as $candidate) {
+            if (in_array($candidate['status'], array('paid', 'paid_over'), true)) {
+                $paidMappings[] = $candidate;
+            } elseif (!in_array($candidate['status'], array('expired', 'cancelled', 'underpaid'), true)) {
+                // A second unresolved generation may still receive payment.
+                throw new \RuntimeException('refund_invoice_mapping_ambiguous');
+            }
+        }
+        if (count($paidMappings) !== 1) {
             throw new \RuntimeException('refund_invoice_mapping_ambiguous');
         }
-        $mapping = $mapping[0];
+        $mapping = $paidMappings[0];
         $payments = $db->getRows('SELECT p.* FROM `' . Migrations::table('order_payment') . '` p WHERE p.order_reference = '
             . $this->store->quote($order['reference']) . ' ORDER BY p.id_order_payment');
         $siblings = $db->getRows('SELECT id_order FROM `' . Migrations::table('orders') . '` WHERE reference = ' . $this->store->quote($order['reference']));

@@ -572,6 +572,36 @@ function test_prestashop_refund_preview_is_readonly_and_capability_scoped()
     prestashop_refund_throws(static function () use ($adapter) { $adapter->preview(42); }, 'refund_summary_scope_invalid');
 }
 
+function test_prestashop_refund_fallback_hides_completed_overpayment_without_inventing_amounts()
+{
+    foreach (array('local', 'external') as $source) {
+        list($adapter, $store, $native, $transport) = prestashop_refund_fixture();
+        $transport->invoiceExtra = array('status' => 'paid_over',
+            'payment' => array('expected' => '100', 'paid' => '120', 'currency' => 'USDT', 'network' => 'tron'));
+        if ($source === 'local') {
+            $intent = $adapter->request(42, 'overpayment', 'token-preview-over-001');
+            $transport->wire['w_over']['status'] = 'completed';
+            $adapter->reconcile($intent->operationId());
+        } else {
+            $transport->wire['w_external'] = array('withdrawal_id' => 'w_external', 'invoice_id' => 'inv_123',
+                'project_id' => 'prj_123', 'mode' => 'overpayment', 'external_order_id' => 'external-refund',
+                'status' => 'completed', 'amount' => '20', 'currency' => 'USDT', 'network' => 'tron',
+                'first_sender' => 'T_first_sender', 'is_test' => true);
+            $adapter->callback(array('withdrawal_id' => 'w_external', 'invoice_id' => 'inv_123',
+                'project_id' => 'prj_123', 'mode' => 'overpayment', 'external_order_id' => 'external-refund', 'is_test' => true), 'sandbox');
+        }
+        $summary = $adapter->preview(42);
+        assertFalseValue($summary['can_refund_overpayment'], 'Known completed ' . $source . ' overpayment must not be offered again.');
+        assertTrueValue($summary['can_refund_full'], 'Full refund remains available after overpayment-only cash refund.');
+        assertSameValue(null, $summary['full_refund_amount'], 'Unknown remaining full amount is not gross paid.');
+        assertSameValue(null, $summary['overpayment_refund_amount'], 'Unknown overpayment balance stays unspecified.');
+        $transport->invoiceExtra['refund_summary'] = array('can_refund_full' => true, 'can_refund_overpayment' => true,
+            'full_refund_amount' => '100', 'overpayment_refund_amount' => '5');
+        assertSameValue('5', $adapter->preview(42)['overpayment_refund_amount'], 'Authoritative server summary remains unchanged.');
+        assertTrueValue($adapter->preview(42)['can_refund_overpayment'], 'Fresh server summary may authorize a new remaining overpayment.');
+    }
+}
+
 function test_prestashop_refund_guard_checks_authenticated_employee_csrf_permission_and_shop()
 {
     $module = new class extends Paymos {

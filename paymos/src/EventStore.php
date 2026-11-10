@@ -115,19 +115,29 @@ final class EventStore implements CommitAwareEventStoreInterface
         $eventId = $this->pendingEventId;
         $ownerToken = $this->pendingOwnerToken;
 
-        $this->db->execute('UPDATE `' . Migrations::table(Migrations::EVENTS_TABLE) . '`
-            SET `expires_at` = ' . (int) (time() + $this->pendingTtlSeconds) . '
+        $expiresAt = time() + $this->pendingTtlSeconds;
+        if (!$this->db->execute('UPDATE `' . Migrations::table(Migrations::EVENTS_TABLE) . '`
+            SET `expires_at` = ' . (int) $expiresAt . '
             WHERE `event_id` = \'' . $this->db->escape($eventId) . '\'
-                AND `owner_token` = \'' . $this->db->escape($ownerToken) . '\'');
+                AND `owner_token` = \'' . $this->db->escape($ownerToken) . '\'')) {
+            throw new \RuntimeException('Paymos event commit could not be persisted.');
+        }
 
         // DbInterface::execute() does not report affected rows, so ownership is
         // confirmed by reading the row back: it is still ours exactly when the
         // token written by this remember() is the one in the row.
-        $row = $this->db->getRow('SELECT `owner_token` FROM `' . Migrations::table(Migrations::EVENTS_TABLE) . '`
+        $row = $this->db->getRow('SELECT `owner_token`, `expires_at`, `created_at` FROM `' . Migrations::table(Migrations::EVENTS_TABLE) . '`
             WHERE `event_id` = \'' . $this->db->escape($eventId) . '\'');
         $stillOwner = is_array($row)
             && isset($row['owner_token'])
-            && (string) $row['owner_token'] === $ownerToken;
+            && (string) $row['owner_token'] === $ownerToken
+            && isset($row['expires_at'], $row['created_at'])
+            && (int) $row['expires_at'] === $expiresAt
+            && (int) $row['expires_at'] > (int) $row['created_at'] + self::RESERVATION_TTL_SECONDS;
+
+        if (!$stillOwner) {
+            return false;
+        }
 
         $this->pendingEventId = '';
         $this->pendingOwnerToken = '';

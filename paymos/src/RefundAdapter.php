@@ -101,6 +101,31 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 || ($invoice['is_test'] ?? null) !== ($snapshot['environment'] === 'sandbox')
                 || (array_key_exists('refund_summary', $invoice) && !is_array($invoice['refund_summary']))) { throw new \RuntimeException('refund_summary_scope_invalid'); }
             $summary = $this->invoiceSummary($invoice);
+            if (!array_key_exists('refund_summary', $invoice)) {
+                // An older invoice response cannot tell us the remaining
+                // overpayment. Honor completed refunds already verified here.
+                $paymentKey = 'prestashop:' . $orderId;
+                foreach ($this->store->forPayment($paymentKey) as $intent) {
+                    $observation = $intent->observation();
+                    if ($intent->invoiceId() === $snapshot['invoice_id']
+                        && $intent->projectId() === $snapshot['project_id']
+                        && $intent->environment() === $snapshot['environment']
+                        && $intent->mode() === 'overpayment'
+                        && ($intent->cashState() === 'completed'
+                            || ($observation !== null && $observation->status() === 'completed'))) {
+                        $summary['can_refund_overpayment'] = false;
+                    }
+                }
+                foreach ($this->store->unboundForPayment($paymentKey) as $row) {
+                    $refund = VerifiedRefund::fromStorage($this->store->decode($row['payload']));
+                    if ($refund->invoiceId() === $snapshot['invoice_id']
+                        && $refund->projectId() === $snapshot['project_id']
+                        && $refund->environment() === $snapshot['environment']
+                        && $refund->mode() === 'overpayment' && $refund->status() === 'completed') {
+                        $summary['can_refund_overpayment'] = false;
+                    }
+                }
+            }
             $summary['can_refund_full'] = CredentialSet::refundsEnabled($values) && ($summary['can_refund_full'] ?? false) === true;
             $summary['can_refund_overpayment'] = CredentialSet::refundsEnabled($values) && ($summary['can_refund_overpayment'] ?? false) === true;
             return $summary;
@@ -119,8 +144,9 @@ final class RefundAdapter implements NativeRefundProjectorInterface
         return array(
             'can_refund_full' => $paid,
             'can_refund_overpayment' => $overpaid,
-            'full_refund_amount' => isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : ($paid ? (string) ($invoice['order']['amount'] ?? '0') : '0'),
-            'overpayment_refund_amount' => $overpaid && isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : '0',
+            // Gross is not a refundable balance: prior completed refunds are unknown here.
+            'full_refund_amount' => null,
+            'overpayment_refund_amount' => null,
             'refund_asset' => isset($payment['currency'], $payment['network'])
                 ? array('currency' => $payment['currency'], 'network' => $payment['network']) : null,
         );

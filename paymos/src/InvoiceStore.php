@@ -57,7 +57,7 @@ final class InvoiceStore implements InvoiceStoreInterface
 
         $existing = $this->findByExternalOrderId($data['external_order_id']);
         if (is_array($existing)) {
-            $this->db->execute('UPDATE `' . Migrations::table(Migrations::INVOICES_TABLE) . '` SET
+            $saved = $this->db->execute('UPDATE `' . Migrations::table(Migrations::INVOICES_TABLE) . '` SET
                 `id_order` = ' . (int) $data['id_order'] . ',
                 `id_cart` = ' . (int) $data['id_cart'] . ',
                 `paymos_invoice_id` = \'' . $this->db->escape($data['paymos_invoice_id']) . '\',
@@ -71,19 +71,23 @@ final class InvoiceStore implements InvoiceStoreInterface
                 `updated_at` = \'' . $this->db->escape($data['updated_at']) . '\'' . $paidLateNoted . '
                 WHERE `external_order_id` = \'' . $this->db->escape($data['external_order_id']) . '\'');
 
+            if (!$saved) { throw new \RuntimeException('Paymos invoice snapshot update failed.'); }
             return;
         }
 
         $data['created_at'] = $now;
-        $this->db->insert(Migrations::table(Migrations::INVOICES_TABLE), $data);
+        if (!$this->db->insert(Migrations::table(Migrations::INVOICES_TABLE), $data)) {
+            throw new \RuntimeException('Paymos invoice snapshot insert failed.');
+        }
     }
 
     public function updateStatus($paymosInvoiceId, $status)
     {
-        $this->db->execute('UPDATE `' . Migrations::table(Migrations::INVOICES_TABLE) . '` SET
+        $saved = $this->db->execute('UPDATE `' . Migrations::table(Migrations::INVOICES_TABLE) . '` SET
             `status` = \'' . $this->db->escape((string) $status) . '\',
             `updated_at` = \'' . $this->db->escape(date('Y-m-d H:i:s')) . '\'
             WHERE `paymos_invoice_id` = \'' . $this->db->escape((string) $paymosInvoiceId) . '\'');
+        if (!$saved) { throw new \RuntimeException('Paymos invoice snapshot status update failed.'); }
     }
 
     public function findUnpaidRecent($limit, $sinceTimestamp)

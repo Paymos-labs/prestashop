@@ -59,12 +59,7 @@ final class OrderMapper
             return false;
         }
 
-        // The CMS may have committed before the invoice snapshot was saved.
-        if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE && $this->prestashop->orderHasBeenPaid($orderId)) {
-            return false;
-        }
-
-        if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE) {
+        if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE && !$this->prestashop->orderHasBeenPaid($orderId)) {
             $currentAmount = $this->formatAmount($this->scalar($order, 'total', $row['amount']));
             $currentCurrency = strtoupper($this->scalar($order, 'currency', $row['currency']));
 
@@ -89,7 +84,7 @@ final class OrderMapper
                 );
                 $this->prestashop->setOrderState($orderId, $this->prestashop->orderStateId('manual_review'));
 
-                return false;
+                throw new \RuntimeException('Paymos payment amount requires manual review.');
             }
         }
 
@@ -196,6 +191,6 @@ final class OrderMapper
 
     private function formatAmount($value)
     {
-        return number_format((float) $value, 2, '.', '');
+        return AmountGuard::normalizeDecimal((string) $value);
     }
 }

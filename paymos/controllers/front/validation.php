@@ -44,38 +44,45 @@ class PaymosValidationModuleFrontController extends ModuleFrontController
             Tools::redirect('index.php?controller=order&step=1');
         }
 
-        // Duplicate-order guard (PrestaShop validation requirement). If an order
-        // already exists for this cart — buyer double-submitted or refreshed the
-        // validation URL — do NOT mint a second order + second Paymos invoice;
-        // send them to the confirmation of the order that already exists.
+        // Reuse the customer's existing Paymos order and run the same protected
+        // recovery/renewal path; never create a second native order for the cart.
         if ($cart->orderExists()) {
-            $existingOrderId = (int) Order::getIdByCartId((int) $cart->id);
-            $this->redirectToPending($existingOrderId, $cart, $customer);
+            $orderId = (int) Order::getIdByCartId((int) $cart->id);
+            $existingOrder = new Order($orderId);
+            if (!Validate::isLoadedObject($existingOrder)
+                || $existingOrder->module !== $this->module->name
+                || (int) $existingOrder->id_customer !== (int) $customer->id
+                || (string) $existingOrder->secure_key !== (string) $customer->secure_key) {
+                Tools::redirect('index.php?controller=history');
+                return;
+            }
+            if ($existingOrder->hasBeenPaid()) {
+                $this->redirectToPending($orderId, $cart, $customer);
+                return;
+            }
+        } else {
+            $currency = $this->context->currency;
+            $total = (float) $cart->getOrderTotal(true, Cart::BOTH);
+            $pendingStateId = (int) Configuration::get('PAYMOS_OS_PENDING');
 
-            return;
-        }
+            // Create the order up front in the awaiting state. Paid amount is set from
+            // the verified webhook later, never from the cart at this point.
+            $this->module->validateOrder(
+                (int) $cart->id,
+                $pendingStateId,
+                $total,
+                $this->module->displayName,
+                null,
+                array(),
+                (int) $currency->id,
+                false,
+                $customer->secure_key
+            );
 
-        $currency = $this->context->currency;
-        $total = (float) $cart->getOrderTotal(true, Cart::BOTH);
-        $pendingStateId = (int) Configuration::get('PAYMOS_OS_PENDING');
-
-        // Create the order up front in the awaiting state. Paid amount is set from
-        // the verified webhook later, never from the cart at this point.
-        $this->module->validateOrder(
-            (int) $cart->id,
-            $pendingStateId,
-            $total,
-            $this->module->displayName,
-            null,
-            array(),
-            (int) $currency->id,
-            false,
-            $customer->secure_key
-        );
-
-        $orderId = (int) $this->module->currentOrder;
-        if ($orderId <= 0) {
-            $this->failOrderCreation();
+            $orderId = (int) $this->module->currentOrder;
+            if ($orderId <= 0) {
+                $this->failOrderCreation();
+            }
         }
 
         try {
@@ -115,22 +122,13 @@ class PaymosValidationModuleFrontController extends ModuleFrontController
 
     /**
      * Invoice creation failed AFTER the order was already created in the awaiting
-     * state, and no snapshot row exists for the reconciler to recover it. Move the
-     * order to the payment-error state (so it never lingers as a permanent
-     * awaiting-payment order with no recovery path) and show the buyer the Paymos
-     * status page, which renders the failure clearly. Nothing is marked paid.
+     * state, and no snapshot row exists for the reconciler to recover it. Keep the
+     * order pending and show the buyer the status page. A retry
+     * reuses this native order and recovers the deterministic invoice intent.
+     * Browser checkout failures never overwrite an authoritative payment state.
      */
     private function failStrandedOrder($orderId, $cart, $customer)
     {
-        try {
-            (new \PaymosPrestaShop\PrestaShopAdapter())->setOrderState(
-                (int) $orderId,
-                (int) Configuration::get('PS_OS_ERROR')
-            );
-        } catch (\Throwable $e) {
-            PrestaShopLogger::addLog('[Paymos] Could not fail stranded order ' . (int) $orderId . ': ' . $e->getMessage(), 3, null, 'PaymosPrestaShop');
-        }
-
         $this->redirectToPending($orderId, $cart, $customer);
     }
 

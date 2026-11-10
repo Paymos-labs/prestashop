@@ -51,3 +51,21 @@ $_MODULE['<{paymos}prestashop>paymos_362ee7b3e7634961aa1d5d3b4e1d4538'] = 'Desti
 $_MODULE['<{paymos}prestashop>paymos_38995d461e458baebc1faa96b64a0820'] = 'Solicitar reembolso total';
 $_MODULE['<{paymos}prestashop>paymos_9d96e8bf6f6894b85b04a102d3c6badf'] = 'Solicitar reembolso del sobrepago';
 $_MODULE['<{paymos}prestashop>paymos_6ff346e545d15a1ca0e34e884fea145b'] = 'No se pudo cargar la lista de reembolsos de Paymos. Recarga la página para volver a intentarlo.';
+
+$_MODULE['<{paymos}prestashop>paymos_a05cd9dc93bfe1982b7a03b94f88f408'] = 'Conectar Paymos';
+
+$_MODULE['<{paymos}prestashop>paymos_b01f6623e7096991281c11ae42e0d1f8'] = 'Conecta esta URL de la tienda al proyecto seleccionado en Paymos.';
+
+$_MODULE['<{paymos}prestashop>paymos_3a23dd39b73203c7acb8c6ed816c70ca'] = 'Conecte esta tienda a Paymos.';
+
+$_MODULE['<{paymos}prestashop>paymos_16792b909c3ff4e12a43b97f78e6a497'] = 'Iniciando conexión segura…';
+
+$_MODULE['<{paymos}prestashop>paymos_e4bebcb12ce5784e29a60791e70058c1'] = 'Esperando autorización. Código: ';
+
+$_MODULE['<{paymos}prestashop>paymos_335bf8449e7be15614a69479f4127ae3'] = 'Abrir la página de autorización';
+
+$_MODULE['<{paymos}prestashop>paymos_d94ea026a28480f0b82672d32ca6ff29'] = 'El navegador ha bloqueado la pestaña de autorización. ';
+
+$_MODULE['<{paymos}prestashop>paymos_9612e7282b082a190e6b3f38c5286b89'] = ' Código: ';
+
+$_MODULE['<{paymos}prestashop>paymos_b863b9e874093489a4bfa66b9a414960'] = 'Paymos calculará el importe antes de enviar el reembolso.';

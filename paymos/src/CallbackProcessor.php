@@ -70,10 +70,12 @@ final class CallbackProcessor
      */
     public function handle($rawBody, $signatureHeader, array $settings, $now = null)
     {
+        $reserved = false;
         try {
             $config = Config::fromSettings($settings);
             $verified = (new MultiEnvironmentWebhookVerifier($config->webhookSecrets(), $this->eventStore))
                 ->process($signatureHeader, $rawBody, $now);
+            $reserved = true;
             $environment = $verified->environment();
             $event = $verified->event();
 
@@ -101,9 +103,11 @@ final class CallbackProcessor
 
             return new CallbackResult(200, 'OK', true);
         } catch (EventInProgressException $e) {
+            if ($reserved) { $this->releaseEvent(); }
             // Another delivery of this event holds the lock and has not finished.
             // Not a duplicate: a 2xx would mark it delivered even if that delivery
-            // then fails. 409 makes the server retry; the lock is not ours to drop.
+            // then fails. Release only this instance's event reservation; its
+            // owner token prevents it from dropping another delivery's lock.
             $this->prestashop->log('Paymos webhook is still being processed by another delivery.', array('in_progress' => true));
 
             return new CallbackResult(409, 'In progress');
@@ -116,7 +120,7 @@ final class CallbackProcessor
             $this->prestashop->log('Paymos PrestaShop configuration error.', array('error' => $e->getMessage()));
 
             return new CallbackResult(500, 'Configuration error');
-        } catch (\RuntimeException $e) {
+        } catch (\Throwable $e) {
             $this->releaseEvent();
             $this->prestashop->log('Paymos webhook processing failed.', array('error' => $e->getMessage()));
 
@@ -171,6 +175,30 @@ final class CallbackProcessor
      */
     private function applyEventToOrder(WebhookEvent $event, $environment, array $row, $reverseVerify, array $settings = array())
     {
+        if (method_exists($this->prestashop, 'withOrderLock')) {
+            return $this->prestashop->withOrderLock((int) $row['id_order'], function () use ($event, $environment, $row, $reverseVerify, $settings) {
+                $fresh = $this->invoiceStore->findByExternalOrderId($event->externalOrderId());
+                if (!is_array($fresh)) {
+                    throw new \RuntimeException('Paymos invoice snapshot was not found after locking.');
+                }
+                return $this->applyOwnedEvent($event, $environment, $fresh, $reverseVerify, $settings);
+            });
+        }
+        return $this->applyOwnedEvent($event, $environment, $row, $reverseVerify, $settings);
+    }
+
+    private function applyOwnedEvent(WebhookEvent $event, $environment, array $row, $reverseVerify, array $settings)
+    {
+        if (InvoiceCreation::isPending($row)) {
+            // A crash after the API accepted create leaves a recoverable intent.
+            // Resolve it through the API, never bind an invoice from the webhook alone.
+            if ((string) $row['environment'] !== (string) $environment || (string) $row['project_id'] !== $event->projectId()) {
+                throw new \RuntimeException('Paymos event does not match the creation intent.');
+            }
+            $row = InvoiceCreation::recover($row, $this->invoiceStore, $this->client($environment, $settings), function (): void {
+                if (method_exists($this->prestashop, 'assertOrderLockOwned')) { $this->prestashop->assertOrderLockOwned(); }
+            });
+        }
         $this->assertRowMatchesEvent($row, $event, $environment);
 
         if ($reverseVerify && $this->requiresReverseVerify($event)) {
@@ -223,6 +251,9 @@ final class CallbackProcessor
         }
 
 
+        if (method_exists($this->prestashop, 'assertOrderLockOwned')) {
+            $this->prestashop->assertOrderLockOwned();
+        }
         $applied = (new OrderMapper($this->prestashop))->apply($event, $row);
         $this->invoiceStore->updateStatus($event->invoiceId(), $event->status());
 
@@ -327,7 +358,9 @@ final class CallbackProcessor
     private function commitEvent()
     {
         if (method_exists($this->eventStore, 'commit')) {
-            $this->eventStore->commit();
+            if ($this->eventStore->commit() === false) {
+                throw new \RuntimeException('Paymos event commit was not confirmed.');
+            }
         }
     }
 

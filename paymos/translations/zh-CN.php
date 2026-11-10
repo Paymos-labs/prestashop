@@ -51,3 +51,21 @@ $_MODULE['<{paymos}prestashop>paymos_362ee7b3e7634961aa1d5d3b4e1d4538'] = '退�
 $_MODULE['<{paymos}prestashop>paymos_38995d461e458baebc1faa96b64a0820'] = '申请全额退款';
 $_MODULE['<{paymos}prestashop>paymos_9d96e8bf6f6894b85b04a102d3c6badf'] = '申请退还多付款';
 $_MODULE['<{paymos}prestashop>paymos_6ff346e545d15a1ca0e34e884fea145b'] = '无法加载 Paymos 退款列表，请刷新页面重试。';
+
+$_MODULE['<{paymos}prestashop>paymos_a05cd9dc93bfe1982b7a03b94f88f408'] = '连接 Paymos';
+
+$_MODULE['<{paymos}prestashop>paymos_b01f6623e7096991281c11ae42e0d1f8'] = '将此商店网址连接到 Paymos 中当前选定的项目。';
+
+$_MODULE['<{paymos}prestashop>paymos_3a23dd39b73203c7acb8c6ed816c70ca'] = '请将此商店连接到 Paymos。';
+
+$_MODULE['<{paymos}prestashop>paymos_16792b909c3ff4e12a43b97f78e6a497'] = '正在发起安全连接…';
+
+$_MODULE['<{paymos}prestashop>paymos_e4bebcb12ce5784e29a60791e70058c1'] = '正在等待授权。验证码：';
+
+$_MODULE['<{paymos}prestashop>paymos_335bf8449e7be15614a69479f4127ae3'] = '打开授权页面';
+
+$_MODULE['<{paymos}prestashop>paymos_d94ea026a28480f0b82672d32ca6ff29'] = '浏览器拦截了授权标签页。';
+
+$_MODULE['<{paymos}prestashop>paymos_9612e7282b082a190e6b3f38c5286b89'] = ' 验证码：';
+
+$_MODULE['<{paymos}prestashop>paymos_b863b9e874093489a4bfa66b9a414960'] = 'Paymos 将在发送退款前计算金额。';

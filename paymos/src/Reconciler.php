@@ -46,6 +46,18 @@ final class Reconciler
 
         foreach ($this->store->findUnpaidRecent(50, $now - 86400) as $row) {
             try {
+                if (InvoiceCreation::isPending($row)) {
+                    $recover = function () use ($row, $settings): array {
+                        $fresh = $this->store->findByExternalOrderId((string) $row['external_order_id']);
+                        if (!is_array($fresh)) { throw new \RuntimeException('Paymos creation intent disappeared.'); }
+                        return InvoiceCreation::recover($fresh, $this->store,
+                            $this->client((string) $fresh['environment'], $settings), function (): void {
+                                if (method_exists($this->prestashop, 'assertOrderLockOwned')) { $this->prestashop->assertOrderLockOwned(); }
+                            });
+                    };
+                    $row = method_exists($this->prestashop, 'withOrderLock')
+                        ? $this->prestashop->withOrderLock((int) $row['id_order'], $recover) : $recover();
+                }
                 $invoice = $this->client((string) $row['environment'], $settings)
                     ->invoices()->get((string) $row['paymos_invoice_id']);
 

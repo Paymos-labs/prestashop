@@ -76,16 +76,35 @@ final class GatewayCheckout
      */
     public function start($orderId, array $settings)
     {
+        if (method_exists($this->prestashop, 'withOrderLock')) {
+            return $this->prestashop->withOrderLock($orderId, function () use ($orderId, $settings) {
+                return $this->startOwned($orderId, $settings);
+            });
+        }
+        return $this->startOwned($orderId, $settings);
+    }
+
+    private function startOwned($orderId, array $settings)
+    {
         $config = Config::fromSettings($settings);
         $order = $this->prestashop->getOrder($orderId);
         if (count($order) === 0) {
             throw new \RuntimeException('PrestaShop order was not found.');
+        }
+        if ($this->prestashop->orderHasBeenPaid($orderId)) {
+            throw new \RuntimeException('PrestaShop order is already paid.');
         }
 
         $amount = $this->amount($this->field($order, 'total'));
         $currency = strtoupper($this->field($order, 'currency'));
         $cartId = (int) $this->field($order, 'id_cart');
         $existing = $this->store->findByOrderId($orderId);
+        if (is_array($existing) && InvoiceCreation::isPending($existing)) {
+            $existing = InvoiceCreation::recover($existing, $this->store,
+                $this->client($config, (string) $existing['environment']), function (): void {
+                    if (method_exists($this->prestashop, 'assertOrderLockOwned')) { $this->prestashop->assertOrderLockOwned(); }
+                });
+        }
 
         if (is_array($existing) && $this->snapshotMatches($existing, $amount, $currency, $config)
             && $this->keepsExistingInvoice($existing, $config)) {
@@ -109,34 +128,24 @@ final class GatewayCheckout
             $externalOrderId,
             $this->clientId($order)
         );
-        $response = $this->client($config)->invoices()->create($payload);
-
-        // The Merchant API create response is an InvoiceStatusContract: the
-        // invoice id is `invoice_id` and the hosted-checkout link is
-        // `payment_url`. No other aliases exist server-side.
-        $paymosInvoiceId = $this->responseField($response, array('invoice_id'));
-        $paymentUrl = $this->responseField($response, array('payment_url'));
-        if ($paymosInvoiceId === '' || $paymentUrl === '') {
-            throw new \RuntimeException('Paymos invoice create response is missing invoice id or payment URL.');
-        }
-
-        $this->store->save(array(
+        $intent = InvoiceCreation::pending(array(
             'id_order' => (int) $orderId,
             'id_cart' => $cartId,
-            'paymos_invoice_id' => $paymosInvoiceId,
             'external_order_id' => $externalOrderId,
             'environment' => $config->environment(),
             'project_id' => $config->projectId(),
             'amount' => $amount,
             'currency' => $currency,
-            'payment_url' => $paymentUrl,
-            'status' => $this->responseField($response, array('status')) ?: 'created',
             'renew_count' => $renewCount,
-        ));
+        ), $payload);
+        $this->store->save($intent);
+        $created = InvoiceCreation::recover($intent, $this->store, $this->client($config), function (): void {
+            if (method_exists($this->prestashop, 'assertOrderLockOwned')) { $this->prestashop->assertOrderLockOwned(); }
+        });
 
         return array(
-            'invoice_id' => $paymosInvoiceId,
-            'payment_url' => $paymentUrl,
+            'invoice_id' => (string) $created['paymos_invoice_id'],
+            'payment_url' => (string) $created['payment_url'],
             'reused' => '0',
         );
     }
@@ -146,7 +155,7 @@ final class GatewayCheckout
      */
     private function snapshotMatches(array $row, $amount, $currency, Config $config)
     {
-        return (string) $row['amount'] === (string) $amount
+        return \Paymos\Plugin\AmountGuard::normalizeDecimal((string) $row['amount']) === $amount
             && strtoupper((string) $row['currency']) === strtoupper((string) $currency)
             && (string) $row['project_id'] === $config->projectId()
             && (string) $row['environment'] === $config->environment()
@@ -185,6 +194,9 @@ final class GatewayCheckout
 
         try {
             $invoice = $this->client($config)->invoices()->get((string) $row['paymos_invoice_id']);
+            if (method_exists($this->prestashop, 'assertOrderLockOwned')) {
+                $this->prestashop->assertOrderLockOwned();
+            }
         } catch (NotFoundException $e) {
             return false;
         } catch (\Exception $e) {
@@ -221,6 +233,10 @@ final class GatewayCheckout
             return $this->client($config, $environment);
         }))->close((string) $row['paymos_invoice_id'], $recorded);
 
+        if (method_exists($this->prestashop, 'assertOrderLockOwned')) {
+            $this->prestashop->assertOrderLockOwned();
+        }
+
         if ($result->isClosed()) {
             // Record the final status before the new row exists, so the old
             // invoice's own webhook (invoice.cancelled after our cancel) finds
@@ -254,7 +270,11 @@ final class GatewayCheckout
 
     private function amount($amount)
     {
-        return number_format((float) $amount, 2, '.', '');
+        $normalized = \Paymos\Plugin\AmountGuard::normalizeDecimal((string) $amount);
+        if ($normalized === null) {
+            throw new \RuntimeException('PrestaShop order amount is not a decimal.');
+        }
+        return $normalized;
     }
 
     /**

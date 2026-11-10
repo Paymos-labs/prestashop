@@ -146,19 +146,23 @@ function test_prestashop_callback_holds_amount_mismatch_for_manual_review()
     $store->save(prestashop_snapshot(array('amount' => '100.00')));
     $adapter = new FakePrestaShopAdapter();
     $adapter->orders[42] = prestashop_order(array('total' => '150.00'));
-    list($client) = prestashop_reverse_verify_client();
-
     $body = json_encode(prestashop_invoice_event('evt_mismatch', 'invoice.paid', 'paid'));
     $signature = prestashop_signed_header('whsec_sandbox', $body, 1709000000);
 
-    $result = (new CallbackProcessor($adapter, $store, new InMemoryEventStore(), static function () use ($client) {
-        return $client;
-    }))->handle($body, $signature, prestashop_settings(), 1709000000);
+    $processor = new CallbackProcessor($adapter, $store, new InMemoryEventStore(), static function () {
+        return prestashop_reverse_verify_client()[0];
+    });
+    $result = $processor->handle($body, $signature, prestashop_settings(), 1709000000);
 
-    assertSameValue(200, $result->statusCode(), 'an amount mismatch is recorded (200), not retried forever.');
+    assertSameValue(400, $result->statusCode(), 'An unapplied payment remains retryable after manual review.');
     assertSameValue(9, $adapter->transitions[0]['id_order_state'], 'amount mismatch must move the order to manual review, not paid.');
     assertSameValue(1, count($adapter->notes), 'a mismatch note must be left for the merchant.');
     assertContainsValue('order amount changed', $adapter->notes[0]['note'], 'the note must explain the mismatch.');
+    assertSameValue('created', $store->findByExternalOrderId('ps_42_0')['status'], 'Manual review must not finalize an unapplied snapshot.');
+    $adapter->orders[42]['total'] = '100.00';
+    assertSameValue(200, $processor->handle($body, $signature, prestashop_settings(), 1709000000)->statusCode(), 'Corrected native order recovers the same event.');
+    assertSameValue('paid', $store->findByExternalOrderId('ps_42_0')['status'], 'Recovered payment finalizes the snapshot.');
+    assertSameValue(5, $adapter->orders[42]['current_state'], 'Recovery reaches the paid state.');
 }
 
 function test_prestashop_callback_ignores_non_invoice_events()

@@ -62,7 +62,7 @@ class Paymos extends PaymentModule
     {
         $this->name = 'paymos';
         $this->tab = 'payments_gateways';
-        $this->version = '1.6.6';
+        $this->version = '1.7.0';
         $this->author = 'Paymos';
         $this->need_instance = 0;
         // A fixed maximum: the Addons validator rejects 'compatible with whatever is
@@ -419,23 +419,32 @@ class Paymos extends PaymentModule
         $start = $base . '&paymosConnectStart=1';
         $poll = $base . '&paymosConnectPoll=1';
 
-        return '<div class="panel"><h3>Connect Paymos</h3>'
-            . '<p>Connects this exact shop URL to the project currently selected in Paymos.</p>'
-            . '<button type="button" class="btn btn-primary" id="paymos-connect-button">Connect Paymos</button>'
+        $labels = array(
+            'connect_store' => $this->l('Connect this store to Paymos.'),
+            'connect_starting' => $this->l('Starting secure connection…'),
+            'connect_waiting' => $this->l('Waiting for approval. Code: '),
+            'connect_open' => $this->l('Open the approval page'),
+            'connect_blocked' => $this->l('Your browser blocked the approval tab. '),
+            'connect_code' => $this->l(' Code: '),
+        );
+
+        return '<div class="panel"><h3>' . htmlspecialchars($this->l('Connect Paymos'), ENT_QUOTES, 'UTF-8') . '</h3>'
+            . '<p>' . htmlspecialchars($this->l('Connects this exact shop URL to the project currently selected in Paymos.'), ENT_QUOTES, 'UTF-8') . '</p>'
+            . '<button type="button" class="btn btn-primary" id="paymos-connect-button">' . htmlspecialchars($this->l('Connect Paymos'), ENT_QUOTES, 'UTF-8') . '</button>'
             . '<p id="paymos-connect-status" aria-live="polite"></p></div>'
-            . '<script>(function(){var b=document.getElementById("paymos-connect-button"),s=document.getElementById("paymos-connect-status"),manual=false;'
+            . '<script>(function(){var c=' . json_encode($labels, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ';var b=document.getElementById("paymos-connect-button"),s=document.getElementById("paymos-connect-status"),manual=false;'
             /* The tab is opened synchronously inside the click: browsers only honour
                window.open for a few seconds after the gesture, so opening it once the
                start request resolves is blocked on slow connections. No feature string —
                any feature string asks for a popup, which blockers reject far more often. */
-            . 'if(!b)return;b.addEventListener("click",function(){b.disabled=true;manual=false;s.textContent="Starting secure connection…";'
+            . 'if(!b)return;b.addEventListener("click",function(){b.disabled=true;manual=false;s.textContent=c.connect_starting;'
             . 'var t=window.open("","_blank");if(t){try{t.opener=null;}catch(e){}}'
             . 'var d=new URLSearchParams({paymos_return_url:location.href});'
             . 'fetch(' . json_encode($start) . ',{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:d.toString()}).then(function(r){return r.json();}).then(function(j){'
             . 'if(j.error)throw new Error(j.error);'
-            . 'if(t&&!t.closed){t.location=j.verification_url;s.textContent="Waiting for approval. Code: "+j.user_code;}'
-            . 'else{manual=true;s.textContent="";var a=document.createElement("a");a.href=j.verification_url;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Open the approval page";'
-            . 's.appendChild(document.createTextNode("Your browser blocked the approval tab. "));s.appendChild(a);s.appendChild(document.createTextNode(" Code: "+j.user_code));}'
+            . 'if(t&&!t.closed){t.location=j.verification_url;s.textContent=c.connect_waiting+j.user_code;}'
+            . 'else{manual=true;s.textContent="";var a=document.createElement("a");a.href=j.verification_url;a.target="_blank";a.rel="noopener noreferrer";a.textContent=c.connect_open;'
+            . 's.appendChild(document.createTextNode(c.connect_blocked));s.appendChild(a);s.appendChild(document.createTextNode(c.connect_code+j.user_code));}'
             . 'var i=Math.max(1,Number(j.interval||5))*1000;setTimeout(function p(){fetch(' . json_encode($poll) . ',{method:"POST",credentials:"same-origin"})'
             . '.then(function(r){return r.json();}).then(function(x){if(x.error)throw new Error(x.error);if(x.status==="connected"){location.reload();return;}setTimeout(p,x.status==="slow_down"?i+5000:i);})'
             . '.catch(function(e){if(!manual)s.textContent=e.message;b.disabled=false;});},i);})'
@@ -651,8 +660,8 @@ class Paymos extends PaymentModule
             }
             $csrf = Tools::getAdminTokenLite('AdminModules');
             return '<div class="panel"><h3>' . $this->l('Paymos refunds') . '</h3><p>'
-                . $this->l('Full refund:') . ' <code>' . $escape($summary['full_refund_amount'] ?? '') . '</code><br>'
-                . $this->l('Overpayment refund:') . ' <code>' . $escape($summary['overpayment_refund_amount'] ?? '') . '</code><br>'
+                . $this->l('Full refund:') . ' <code>' . $escape($summary['full_refund_amount'] ?? $this->l('Calculated by Paymos before the refund is sent.')) . '</code><br>'
+                . $this->l('Overpayment refund:') . ' <code>' . $escape($summary['overpayment_refund_amount'] ?? $this->l('Calculated by Paymos before the refund is sent.')) . '</code><br>'
                 . $this->l('Recipient (sender of the first payment):') . ' <code>' . $escape($summary['sender_address'] ?? '') . '</code>'
                 . '</p><ul>' . $history . '</ul><form method="post" action="' . $escape($base) . '">'
                 . '<input type="hidden" name="paymosRefund" value="1"><input type="hidden" name="paymos_order_id" value="' . $orderId . '">'

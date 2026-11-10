@@ -34,14 +34,14 @@ final class PrestaShopDb implements DbInterface
 
     public function getValue($sql)
     {
-        $value = $this->db->getValue($sql);
+        $value = $this->db->getValue($sql, false);
 
         return $value === false || $value === null ? '' : (string) $value;
     }
 
     public function getRow($sql)
     {
-        $row = $this->db->getRow($sql);
+        $row = $this->db->getRow($sql, false);
 
         return is_array($row) && count($row) > 0 ? $row : null;
     }

@@ -256,10 +256,20 @@ final class FakePrestaShopAdapter implements PaymosPrestaShop\PrestaShopAdapterI
             $this->failBeforePayment = false;
             throw new RuntimeException('Failure before CMS payment');
         }
+        $orderId = (int) $orderId;
+        $orderStateId = (int) $orderStateId;
+        $last = null;
+        foreach ($this->transitions as $transition) {
+            if ($transition['id_order'] === $orderId) { $last = $transition['id_order_state']; }
+        }
+        if (($this->orders[$orderId]['current_state'] ?? null) === $orderStateId && $last === $orderStateId) {
+            return;
+        }
         $this->transitions[] = array(
             'id_order' => (int) $orderId,
             'id_order_state' => (int) $orderStateId,
         );
+        $this->orders[$orderId]['current_state'] = $orderStateId;
         if ((int) $orderStateId === $this->stateIds['paid']) $this->paid[(int) $orderId] = true;
         if ($this->failAfterPayment) {
             $this->failAfterPayment = false;

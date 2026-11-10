@@ -34,7 +34,7 @@ function test_prestashop_gateway_checkout_creates_invoice_and_stores_snapshot()
     $row = $store->findByOrderId(42);
     assertSameValue('inv_123', $row['paymos_invoice_id'], 'created Paymos invoice id must be stored.');
     assertSameValue('ps_42_0', $row['external_order_id'], 'first external order id must be deterministic.');
-    assertSameValue('100.00', $row['amount'], 'order amount snapshot must be stored.');
+    assertSameValue('100', $row['amount'], 'exact normalized order amount snapshot must be stored.');
     assertSameValue('USD', $row['currency'], 'order currency snapshot must be stored.');
     assertSameValue(24, (int) $row['id_cart'], 'cart id must be stored on the snapshot.');
 
@@ -45,6 +45,40 @@ function test_prestashop_gateway_checkout_creates_invoice_and_stores_snapshot()
     assertSameValue(false, isset($payload['order']), 'Paymos create payload must not use webhook/read-model order object.');
     assertSameValue(false, isset($payload['webhook_url']), 'Paymos create payload must not carry a webhook_url.');
     assertSameValue(false, isset($payload['lifetime']), 'Paymos create payload must not carry a fake lifetime field.');
+}
+
+function test_prestashop_gateway_recovered_paid_create_is_applied_by_callback_or_reconcile()
+{
+    foreach (array('paid', 'paid_over') as $status) {
+        foreach (array('callback', 'reconcile') as $route) {
+            $store = new InMemoryInvoiceStore();
+            $adapter = new FakePrestaShopAdapter();
+            $invoice = array('invoice_id' => 'inv_123', 'project_id' => 'prj_123',
+                'payment_url' => 'https://checkout.paymos.test/inv_123', 'status' => $status, 'is_test' => true,
+                'order' => array('external_id' => 'ps_42_0', 'amount' => '100', 'currency' => 'USD'));
+            $clientFactory = static function () use ($invoice) {
+                return new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'),
+                    new MockTransport(array(new HttpResponse(200, json_encode($invoice), array()))));
+            };
+            (new GatewayCheckout($store, $adapter, $clientFactory))->start(42, prestashop_settings());
+            assertSameValue('created', $store->findByOrderId(42)['status'], 'Recovered remote terminal status is not a native receipt.');
+            assertSameValue(0, count($adapter->transitions), 'Checkout does not assert native payment.');
+            if ($route === 'callback') {
+                $processor = new PaymosPrestaShop\CallbackProcessor($adapter, $store, new PaymosPrestaShop\InMemoryEventStore(), $clientFactory);
+                $body = json_encode(prestashop_invoice_event('evt_recovered', 'invoice.' . $status, $status));
+                $sig = prestashop_signed_header('whsec_sandbox', $body, time());
+                assertSameValue(200, $processor->handle($body, $sig, prestashop_settings())->statusCode(), 'Recovered invoice callback applies.');
+                assertSameValue(200, $processor->handle($body, $sig, prestashop_settings())->statusCode(), 'Recovered duplicate is acknowledged.');
+            } else {
+                $reconciler = new PaymosPrestaShop\Reconciler($store, $adapter, $clientFactory);
+                assertSameValue(1, $reconciler->run(prestashop_settings(), time()), 'Recovered invoice remains in the reconciliation window.');
+                assertSameValue(0, $reconciler->run(prestashop_settings(), time()), 'Applied terminal snapshot leaves the window.');
+            }
+            assertSameValue($status, $store->findByOrderId(42)['status'], 'Only successful native apply finalizes the snapshot.');
+            assertSameValue(1, count($adapter->transitions), 'Recovered payment transitions once.');
+            assertSameValue(5, $adapter->orders[42]['current_state'], 'Recovered payment is paid in PrestaShop.');
+        }
+    }
 }
 
 function test_prestashop_gateway_checkout_does_not_use_email_as_client_id()
