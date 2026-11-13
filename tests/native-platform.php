@@ -189,10 +189,14 @@ foreach (array('paid', 'changed-total', 'underpaid-waiting') as $scenario) {
         'order' => array('external_id' => 'ps_' . $order->id . '_0', 'amount' => $amount,
             'currency' => (new Currency((int) $order->id_currency))->iso_code),
     );
-    $transport = new MockTransport(array(
+    $responses = array(
         new HttpResponse(200, json_encode(array_replace($invoice, array('status' => 'created'))), array()),
         new HttpResponse(200, json_encode($invoice), array()),
-    ));
+    );
+    if ($scenario === 'changed-total') {
+        $responses[] = new HttpResponse(200, json_encode($invoice), array());
+    }
+    $transport = new MockTransport($responses);
     $client = new Client(new ClientConfig('pk_test_native_fixture', 'sk_test_native_fixture', 'https://api.paymos.invalid'), $transport);
     $factory = static function () use ($client) { return $client; };
     $created = (new GatewayCheckout($store, $adapter, $factory))->start((int) $order->id, $settings);
@@ -207,28 +211,48 @@ foreach (array('paid', 'changed-total', 'underpaid-waiting') as $scenario) {
         $invoice['status'] = 'underpaid_waiting';
     }
     $now = time();
-    $body = json_encode(array('event_id' => 'evt_native_' . $order->id,
+    $eventId = 'evt_native_' . $order->id;
+    $body = json_encode(array('event_id' => $eventId,
         'event_type' => 'invoice.' . $invoice['status'], 'version' => 1, 'occurred_at' => $now, 'data' => $invoice));
     $signature = 't=' . $now . ',v1=' . hash_hmac('sha256', $now . '.' . $body, 'whsec_native_fixture');
-    $processor = new CallbackProcessor($adapter, $store, new EventStore($db), $factory);
+    $events = new EventStore($db);
+    $processor = new CallbackProcessor($adapter, $store, $events, $factory);
     check_native($processor->handle($body, 't=' . $now . ',v1=' . str_repeat('0', 64), $settings, $now)->statusCode() === 401
         && native_payment_count($order) === 0, $scenario . ': invalid HMAC cannot create a payment');
     $result = $processor->handle($body, $signature, $settings, $now);
-    check_native($result->statusCode() === 200, $scenario . ': signed callback accepted');
     $fresh = new Order((int) $order->id);
-    if ($scenario === 'paid') {
-        check_native($fresh->hasBeenPaid() && native_payment_count($order) === 1, 'Verified paid callback creates exactly one native OrderPayment');
+    if ($scenario === 'changed-total') {
+        check_native($result->statusCode() === 400, 'Changed amount remains retryable until manual review is resolved');
+        check_native(!$fresh->hasBeenPaid() && native_payment_count($order) === 0, 'Changed amount creates no native payment');
+        check_native((int) $fresh->current_state === (int) Configuration::get('PAYMOS_OS_MANUAL_REVIEW'), 'Changed amount enters native manual-review state');
+        check_native($store->findByOrderId((int) $order->id)['status'] === 'created', 'Changed amount leaves the invoice snapshot unfinalized');
+        check_native(!$events->isCommitted($eventId), 'Changed amount has no permanent dedup marker');
+        check_native((int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'paymos_webhook_event` WHERE `event_id` = \'' . pSQL($eventId) . '\'', false) === 0,
+            'Changed amount releases the SQL event reservation');
+        check_native(count($transport->requests()) === 2, 'Changed amount used one create and one verified lookup');
+
+        $fresh->total_paid = (float) $amount;
+        check_native($fresh->update(), 'Original native order amount restored');
+        check_native($processor->handle($body, $signature, $settings, $now)->statusCode() === 200,
+            'Corrected order accepts the exact same signed event');
+        $fresh = new Order((int) $order->id);
+        check_native($fresh->hasBeenPaid() && native_payment_count($order) === 1, 'Recovered delivery creates exactly one native OrderPayment');
+        check_native($store->findByOrderId((int) $order->id)['status'] === 'paid' && $events->isCommitted($eventId),
+            'Recovered delivery finalizes the snapshot and permanent dedup');
     } else {
-        check_native(!$fresh->hasBeenPaid() && native_payment_count($order) === 0, $scenario . ': cannot become paid');
-        if ($scenario === 'changed-total') {
-            check_native((int) $fresh->current_state === (int) Configuration::get('PAYMOS_OS_MANUAL_REVIEW'), 'Changed amount enters native manual-review state');
+        check_native($result->statusCode() === 200, $scenario . ': signed callback accepted');
+        if ($scenario === 'paid') {
+            check_native($fresh->hasBeenPaid() && native_payment_count($order) === 1, 'Verified paid callback creates exactly one native OrderPayment');
+        } else {
+            check_native(!$fresh->hasBeenPaid() && native_payment_count($order) === 0, $scenario . ': cannot become paid');
         }
     }
     $requests = count($transport->requests());
-    check_native($requests === ($scenario === 'underpaid-waiting' ? 1 : 2), $scenario . ': expected SDK create/reverse request count');
+    $expectedRequests = $scenario === 'underpaid-waiting' ? 1 : ($scenario === 'changed-total' ? 3 : 2);
+    check_native($requests === $expectedRequests, $scenario . ': expected SDK create/reverse request count');
     check_native($processor->handle($body, $signature, $settings, $now)->statusCode() === 200
         && count($transport->requests()) === $requests
-        && native_payment_count($order) === ($scenario === 'paid' ? 1 : 0), $scenario . ': duplicate does not repeat API calls or credit');
+        && native_payment_count($order) === ($scenario === 'underpaid-waiting' ? 0 : 1), $scenario . ': duplicate does not repeat API calls or credit');
 }
 
 // Empty the disposable snapshot queue so the HTTP cron check cannot call any API.
