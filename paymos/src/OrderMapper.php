@@ -59,7 +59,16 @@ final class OrderMapper
             return false;
         }
 
-        if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE && !$this->prestashop->orderHasBeenPaid($orderId)) {
+        // The paid transition is applied once. An order that has already been
+        // paid (a previous pass committed PS_OS_PAYMENT, then failed before the
+        // snapshot was written) may since have moved on to Shipped/Delivered;
+        // setting PS_OS_PAYMENT again would pull it back (A47-02). The caller
+        // still records the final snapshot status.
+        if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE && $this->prestashop->orderHasBeenPaid($orderId)) {
+            return false;
+        }
+
+        if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE) {
             $currentAmount = $this->formatAmount($this->scalar($order, 'total', $row['amount']));
             $currentCurrency = strtoupper($this->scalar($order, 'currency', $row['currency']));
 
