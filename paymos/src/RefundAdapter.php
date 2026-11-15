@@ -58,10 +58,10 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                     || ($nativeDraft !== null && $intent->fullDraft() !== $nativeDraft)) {
                     throw new \RuntimeException('refund_request_conflict');
                 }
-                $this->requireCapability($intent->environment(), $intent->projectId(), false);
+                $this->requireCapability($intent->environment(), $intent->projectId());
             } else {
                 $snapshot = $this->native->snapshot($orderId);
-                $this->requireCapability($snapshot['environment'], $snapshot['project_id'], true);
+                $this->requireCapability($snapshot['environment'], $snapshot['project_id']);
                 $this->store->assertNewActionAllowed('prestashop:' . $orderId);
                 $draft = $mode === 'full' ? ($nativeDraft ?: $this->native->fullDraft($snapshot)) : null;
                 $intent = new RefundIntent(array('operation_id' => RefundIntentStore::uuid(), 'request_token' => $token,
@@ -79,14 +79,13 @@ final class RefundAdapter implements NativeRefundProjectorInterface
         });
     }
 
-    private function requireCapability(string $environment, string $projectId, bool $new): array
+    private function requireCapability(string $environment, string $projectId): array
     {
         $values = call_user_func($this->credentials, $environment);
-        if (!CredentialSet::hasCapability($values, 'invoice_refunds_v1')) {
+        if (!CredentialSet::hasCapability($values, 'invoice_refunds_v1') || ($values['refund_contract_version'] ?? null) !== 1) {
             throw new \RuntimeException('refund_reconnect_required');
         }
         if (($values['project_id'] ?? '') !== $projectId) { throw new \RuntimeException('refund_project_changed'); }
-        if ($new && !CredentialSet::refundsEnabled($values)) { throw new \RuntimeException('refunds_not_enabled'); }
         return $values;
     }
 
@@ -94,7 +93,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
     {
         return $this->store->withPaymentLock('prestashop:' . $orderId, function () use ($orderId) {
             $snapshot = $this->native->snapshot($orderId);
-            $values = $this->requireCapability($snapshot['environment'], $snapshot['project_id'], false);
+            $this->requireCapability($snapshot['environment'], $snapshot['project_id']);
             $client = call_user_func($this->clientFactory, $snapshot['environment']);
             $invoice = $client->invoices()->get($snapshot['invoice_id']);
             if (($invoice['invoice_id'] ?? '') !== $snapshot['invoice_id'] || ($invoice['project_id'] ?? '') !== $snapshot['project_id']
@@ -126,8 +125,8 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                     }
                 }
             }
-            $summary['can_refund_full'] = CredentialSet::refundsEnabled($values) && ($summary['can_refund_full'] ?? false) === true;
-            $summary['can_refund_overpayment'] = CredentialSet::refundsEnabled($values) && ($summary['can_refund_overpayment'] ?? false) === true;
+            $summary['can_refund_full'] = ($summary['can_refund_full'] ?? false) === true;
+            $summary['can_refund_overpayment'] = ($summary['can_refund_overpayment'] ?? false) === true;
             return $summary;
         });
     }
@@ -155,7 +154,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
     public function preflight(RefundIntent $intent): ?string
     {
         try {
-            $this->requireCapability($intent->environment(), $intent->projectId(), true);
+            $this->requireCapability($intent->environment(), $intent->projectId());
             $this->native->prepare($intent);
             $this->native->assertReady($intent->mode() === 'full');
             $snapshot = $this->native->snapshot($this->orderId($intent));
@@ -220,7 +219,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
     {
         $intent = $this->store->getIntent($operationId);
         return $this->store->withPaymentLock($intent->paymentKey(), function () use ($intent, $operationId) {
-            $this->requireCapability($intent->environment(), $intent->projectId(), false);
+            $this->requireCapability($intent->environment(), $intent->projectId());
             $this->native->prepare($intent);
             $action = $this->coordinator($intent)->reconcile($operationId);
             $current = $this->store->getIntent($operationId);
@@ -272,7 +271,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 || (isset($data['project_id']) && $data['project_id'] !== $mapping['project_id'])) {
                 throw new \RuntimeException('refund_callback_scope_conflict');
             }
-            $this->requireCapability($environment, $mapping['project_id'], false);
+            $this->requireCapability($environment, $mapping['project_id']);
             $this->observeUnbound($data['withdrawal_id'], $data['invoice_id'], $mapping['project_id'], $environment);
             return;
         }
@@ -360,7 +359,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             . ' WHERE `next_due` <= ' . $this->store->now()->getTimestamp() . ' ORDER BY `next_due`,`withdrawal_id` LIMIT 100') as $row) {
             $snapshot = VerifiedRefund::fromStorage($this->store->decode($row['payload']));
             try {
-                $this->requireCapability($snapshot->environment(), $snapshot->projectId(), false);
+                $this->requireCapability($snapshot->environment(), $snapshot->projectId());
                 $this->observeUnbound($snapshot->withdrawalId(), $snapshot->invoiceId(), $snapshot->projectId(), $snapshot->environment());
             } catch (\Throwable $error) {
                 $this->native->log($error->getMessage());

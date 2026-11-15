@@ -239,7 +239,7 @@ function prestashop_refund_fixture()
     $transport = new PrestaShopRefundTransport();
     $transport->store = $store;
     $transport->db = $db;
-    $credentialBox = new class { public $values = array('project_id' => 'prj_123', 'capabilities' => array('invoice_refunds_v1'), 'refunds_enabled' => true); };
+    $credentialBox = new class { public $values = array('project_id' => 'prj_123', 'capabilities' => array('invoice_refunds_v1'), 'refund_contract_version' => 1, 'refunds_enabled' => true); };
     $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
     $adapter = new RefundAdapter($store, $native, static function () use ($credentialBox) { return $credentialBox->values; },
         static function () use ($client) { return $client; });
@@ -268,10 +268,29 @@ function test_prestashop_refund_capability_and_new_gate_before_any_http()
         prestashop_refund_throws(static function () use ($adapter) { $adapter->request(42, 'full', 'token-capability-0001'); }, 'refund_reconnect_required');
         assertSameValue(array(), $transport->requests, 'No HTTP without capability.');
     }
+    list($adapter, $store, $native, $transport, $db, $credentials) = prestashop_refund_fixture();
     $credentials->values['capabilities'] = array('invoice_refunds_v1');
+    foreach (array(null, 2) as $badContractVersion) {
+        $credentials->values['refund_contract_version'] = $badContractVersion;
+        prestashop_refund_throws(static function () use ($adapter) { $adapter->preview(42); }, 'refund_reconnect_required');
+        prestashop_refund_throws(static function () use ($adapter) { $adapter->request(42, 'full', 'token-capability-0001'); }, 'refund_reconnect_required');
+        assertSameValue(array(), $transport->requests, 'No HTTP when refund_contract_version !== 1.');
+    }
+    $credentials->values['refund_contract_version'] = 1;
     $credentials->values['refunds_enabled'] = false;
-    prestashop_refund_throws(static function () use ($adapter) { $adapter->request(42, 'full', 'token-capability-0001'); }, 'refunds_not_enabled');
-    assertSameValue(array(), $transport->requests, 'Disabled new gate makes no HTTP.');
+    $transport->invoiceExtra = array(
+        'status' => 'paid_over',
+        'payment' => array('paid' => '15.00', 'currency' => 'USDT', 'network' => 'TRC20'),
+    );
+    $preview = $adapter->preview(42);
+    assertTrueValue($preview['can_refund_full'], 'Valid contract allows full preview even with historical refunds_enabled=false.');
+    assertTrueValue($preview['can_refund_overpayment'], 'Valid contract allows overpayment preview even with historical refunds_enabled=false.');
+    assertSameValue(null, $preview['full_refund_amount'], 'Missing refund_summary keeps full amount null.');
+    assertSameValue(null, $preview['overpayment_refund_amount'], 'Missing refund_summary keeps overpayment amount null.');
+    $intent = $adapter->request(42, 'full', 'token-capability-0001');
+    assertSameValue('created', $intent->cashState(), 'Valid contract submits refund even with historical refunds_enabled=false.');
+    $posts = array_values(array_filter($transport->requests, static function ($r) { return $r[0] === 'POST'; }));
+    assertSameValue(1, count($posts), 'Refund reaches POST /v1/refunds when contract is valid.');
 }
 
 function test_prestashop_refund_partial_and_manual_refund_rejected_before_http()
