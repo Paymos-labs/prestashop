@@ -376,3 +376,246 @@ function test_prestashop_gateway_checkout_cancels_the_old_invoice_in_its_own_env
     assertSameValue(array('POST'), array_column($sandbox->requests(), 'method'), 'the sandbox invoice is cancelled with sandbox credentials.');
     assertSameValue(array('POST'), array_column($live->requests(), 'method'), 'only the create goes to live.');
 }
+
+function test_prestashop_gateway_checkout_single_product_and_optional_fields()
+{
+    $store = new InMemoryInvoiceStore();
+    $adapter = new FakePrestaShopAdapter();
+    $adapter->orders[42] = prestashop_order(array(
+        'total' => '47.00',
+        'products' => array(
+            array(
+                'product_name' => "<b>Canvas</b> &amp; Blue\0",
+                'description' => "<p>Museum grade</p><p>Cotton\0</p>",
+                'image_url' => 'https://shop.example/canvas.webp',
+                'product_quantity' => 2,
+                'unit_price_tax_incl' => '24.50',
+            ),
+        ),
+    ));
+    $transport = new MockTransport(array(
+        new HttpResponse(201, json_encode(array(
+            'invoice_id' => 'inv_single',
+            'status' => 'awaiting_client',
+            'payment_url' => 'https://checkout.paymos.test/inv_single',
+        )), array()),
+    ));
+    $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
+
+    (new GatewayCheckout($store, $adapter, static function () use ($client) {
+        return $client;
+    }))->start(42, prestashop_settings());
+
+    $payload = json_decode($transport->requests()[0]['body'], true);
+    assertSameValue('47', $payload['amount'], 'native grand total must remain intact.');
+    assertSameValue(
+        array(
+            array(
+                'title' => 'Canvas & Blue',
+                'quantity' => 2,
+                'unit_amount' => '24.50',
+                'description' => "Museum grade\nCotton",
+                'image_url' => 'https://shop.example/canvas.webp',
+            ),
+        ),
+        $payload['products'],
+        'single PrestaShop item must normalize cleanly.'
+    );
+
+    // Optional blank description and non-HTTPS image_url must omit optional keys without failing the item.
+    $checkout = new GatewayCheckout(new InMemoryInvoiceStore(), new FakePrestaShopAdapter());
+    $minimal = $checkout->buildInvoicePayload('prj_123', '47.00', 'USD', 'ps_42_0', '77', array(
+        array(
+            'title' => 'Canvas · Blue',
+            'description' => '<p>&nbsp;</p>',
+            'image_url' => 'http://shop.example/insecure.png',
+            'quantity' => '2',
+            'unit_amount' => '24.50',
+        ),
+    ));
+    assertSameValue(
+        array(array('title' => 'Canvas · Blue', 'quantity' => 2, 'unit_amount' => '24.50')),
+        $minimal['products'],
+        'blank description and http image_url must be omitted without failing item.'
+    );
+
+    // Adapter formatting helper preserves precision without float rounding surprises.
+    assertSameValue('24.50', PaymosPrestaShop\PrestaShopAdapter::formatUnitAmount('24.500000', 2), '6-decimal MySQL price must format to 2-decimal currency precision.');
+    assertSameValue('10.001', PaymosPrestaShop\PrestaShopAdapter::formatUnitAmount('10.001000', 3), '3-decimal currency must keep 3rd decimal digit.');
+    assertSameValue('16050', PaymosPrestaShop\PrestaShopAdapter::formatUnitAmount('16050.000000', 0), '0-decimal currency must drop zero decimals.');
+    assertSameValue(array(), (new PaymosPrestaShop\PrestaShopAdapter())->getOrder(0), 'missing PrestaShop order still returns empty array.');
+}
+
+function test_prestashop_gateway_checkout_cart_products_and_all_or_nothing_fallback()
+{
+    $store = new InMemoryInvoiceStore();
+    $adapter = new FakePrestaShopAdapter();
+    $adapter->orders[42] = prestashop_order(array(
+        'total' => '42.50',
+        'products' => array(
+            array(
+                'title' => 'Canvas · Blue',
+                'description' => '<p>Giclée print</p>',
+                'image_url' => 'https://shop.example/canvas.webp',
+                'quantity' => 2,
+                'unit_amount' => '15.00',
+            ),
+            array('type' => 'shipping', 'title' => 'Carrier', 'quantity' => 1, 'unit_amount' => '5.00'),
+            array('type' => 'discount', 'title' => 'Voucher', 'quantity' => 1, 'unit_amount' => '-5.00'),
+            array(
+                'title' => 'Notebook',
+                'description' => null,
+                'image_url' => 'https://user:pass@shop.example/img.png',
+                'quantity' => 1,
+                'unit_amount' => '12.50',
+            ),
+        ),
+    ));
+    $transport = new MockTransport(array(
+        new HttpResponse(201, json_encode(array(
+            'invoice_id' => 'inv_cart',
+            'status' => 'awaiting_client',
+            'payment_url' => 'https://checkout.paymos.test/inv_cart',
+        )), array()),
+    ));
+    $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
+
+    (new GatewayCheckout($store, $adapter, static function () use ($client) {
+        return $client;
+    }))->start(42, prestashop_settings());
+
+    $payload = json_decode($transport->requests()[0]['body'], true);
+    assertSameValue('42.5', $payload['amount'], 'cart native grand total must be preserved.');
+    assertSameValue(
+        array(
+            array(
+                'title' => 'Canvas · Blue',
+                'quantity' => 2,
+                'unit_amount' => '15.00',
+                'description' => 'Giclée print',
+                'image_url' => 'https://shop.example/canvas.webp',
+            ),
+            array(
+                'title' => 'Notebook',
+                'quantity' => 1,
+                'unit_amount' => '12.50',
+            ),
+        ),
+        $payload['products'],
+        'cart must include all valid lines and omit non-product lines.'
+    );
+
+    $fifty = array();
+    for ($i = 1; $i <= 50; $i++) {
+        $fifty[] = array('title' => 'Item ' . $i, 'quantity' => 1, 'unit_amount' => '1.00');
+    }
+    $fiftyOne = $fifty;
+    $fiftyOne[] = array('title' => 'Item 51', 'quantity' => 1, 'unit_amount' => '1.00');
+
+    $checkout = new GatewayCheckout(new InMemoryInvoiceStore(), new FakePrestaShopAdapter());
+    $atMax = $checkout->buildInvoicePayload('prj_123', '50.00', 'USD', 'ps_42_0', '77', $fifty);
+    assertSameValue(50, count($atMax['products']), 'exactly 50 items must be sent.');
+
+    $invalidCarts = array(
+        'fractional_qty' => array(
+            array('title' => 'Valid', 'quantity' => 1, 'unit_amount' => '20.00'),
+            array('title' => 'Fabric', 'quantity' => 1.5, 'unit_amount' => '10.00'),
+        ),
+        'empty_title' => array(
+            array('title' => 'Valid', 'quantity' => 1, 'unit_amount' => '20.00'),
+            array('title' => '   ', 'quantity' => 1, 'unit_amount' => '10.00'),
+        ),
+        'negative_unit_amount' => array(
+            array('title' => 'Valid', 'quantity' => 1, 'unit_amount' => '20.00'),
+            array('title' => 'Broken', 'quantity' => 1, 'unit_amount' => '-1.00'),
+        ),
+        'over_50' => $fiftyOne,
+    );
+    foreach ($invalidCarts as $label => $items) {
+        $fallback = $checkout->buildInvoicePayload('prj_123', '42.50', 'USD', 'ps_42_0', '77', $items);
+        assertSameValue('42.50', $fallback['amount'], $label . ': fallback preserves amount.');
+        assertFalseValue(array_key_exists('products', $fallback), $label . ': invalid cart reverts to amount-only.');
+    }
+}
+
+function test_prestashop_gateway_checkout_retry_replays_original_products_payload_and_money_guards()
+{
+    $store = new InMemoryInvoiceStore();
+    $adapter = new FakePrestaShopAdapter();
+    $adapter->orders[42] = prestashop_order(array(
+        'total' => '59.00',
+        'products' => array(
+            array(
+                'title' => 'Studio Pro',
+                'description' => 'One-month access',
+                'image_url' => 'https://shop.example/studio-pro.webp',
+                'quantity' => 2,
+                'unit_amount' => '24.50',
+            ),
+            array(
+                'title' => 'Priority Support',
+                'quantity' => 1,
+                'unit_amount' => '12.00',
+            ),
+        ),
+    ));
+
+    $transport = new class (array(
+        new RuntimeException('lost create response'),
+        new HttpResponse(201, json_encode(array(
+            'invoice_id' => 'inv_recovered',
+            'status' => 'awaiting_client',
+            'payment_url' => 'https://checkout.paymos.test/inv_recovered',
+        )), array()),
+        prestashop_live_invoice_response('inv_recovered', 'awaiting_client', time() + 600),
+    )) implements \Paymos\Http\TransportInterface {
+        private $script;
+        private $requests = array();
+
+        public function __construct(array $script)
+        {
+            $this->script = $script;
+        }
+
+        public function request($method, $url, array $headers, $body, $timeoutSeconds)
+        {
+            $this->requests[] = array('method' => (string) $method, 'url' => (string) $url, 'body' => (string) $body);
+            $next = array_shift($this->script);
+            if ($next instanceof \Throwable) {
+                throw $next;
+            }
+            return $next;
+        }
+
+        public function requests()
+        {
+            return $this->requests;
+        }
+    };
+    $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
+    $factory = static function () use ($client) { return $client; };
+
+    $failed = false;
+    try {
+        (new GatewayCheckout($store, $adapter, $factory))->start(42, prestashop_settings());
+    } catch (RuntimeException $e) {
+        $failed = true;
+    }
+    assertTrueValue($failed, 'lost first create response must surface failure while keeping pending intent.');
+    assertSameValue('creating', $store->findByOrderId(42)['status'], 'pending creation intent must remain saved.');
+
+    // Order presentation metadata changes before retry, while amount/currency remain 59.00 USD.
+    $adapter->orders[42]['products'] = array(
+        array('title' => 'Mutated Product', 'quantity' => 3, 'unit_amount' => '15.00'),
+    );
+
+    $result = (new GatewayCheckout($store, $adapter, $factory))->start(42, prestashop_settings());
+    assertSameValue('https://checkout.paymos.test/inv_recovered', $result['payment_url'], 'retry must bind recovered invoice.');
+
+    $requests = $transport->requests();
+    assertSameValue(3, count($requests), 'lost create, byte-identical replay, and liveness GET.');
+    assertSameValue($requests[0]['body'], $requests[1]['body'], 'retry must replay the exact original JSON with original products[].');
+    $replayed = json_decode($requests[1]['body'], true);
+    assertSameValue('Studio Pro', $replayed['products'][0]['title'], 'replayed payload must keep original Studio Pro item.');
+    assertSameValue('Priority Support', $replayed['products'][1]['title'], 'replayed payload must keep original second item.');
+}

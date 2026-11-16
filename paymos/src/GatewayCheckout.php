@@ -6,6 +6,7 @@ namespace PaymosPrestaShop;
 
 use Paymos\Client;
 use Paymos\Exception\NotFoundException;
+use Paymos\Plugin\InvoicePresentation;
 use Paymos\Plugin\InvoiceRenewal;
 use Paymos\Plugin\InvoiceReplacement;
 use Paymos\Plugin\InvoiceReplacementBlockedException;
@@ -51,9 +52,10 @@ final class GatewayCheckout
      * checkout still has a real customer id) — never an email; omitted only when
      * there is no customer id at all.
      *
-     * @return array<string, string>
+     * @param array<int, mixed>|null $products
+     * @return array<string, mixed>
      */
-    public function buildInvoicePayload($projectId, $amount, $currency, $externalOrderId, $clientId = '')
+    public function buildInvoicePayload($projectId, $amount, $currency, $externalOrderId, $clientId = '', ?array $products = null)
     {
         $payload = array(
             'project_id' => (string) $projectId,
@@ -67,7 +69,69 @@ final class GatewayCheckout
             $payload['client_id'] = $clientId;
         }
 
+        if ($products !== null) {
+            $normalized = $this->normalizeProducts($products);
+            if ($normalized !== null) {
+                $payload['products'] = $normalized;
+            }
+        }
+
         return $payload;
+    }
+
+    /**
+     * @param array<int, mixed> $items
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function normalizeProducts(array $items): ?array
+    {
+        if (count($items) === 0) {
+            return null;
+        }
+
+        $candidates = array();
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                return null;
+            }
+            if (isset($item['type']) && is_string($item['type'])
+                && in_array(strtolower(trim($item['type'])), array('shipping', 'discount', 'tax', 'fee', 'coupon', 'surcharge', 'note'), true)) {
+                continue;
+            }
+
+            $title = array_key_exists('title', $item)
+                ? $item['title']
+                : (array_key_exists('product_name', $item)
+                    ? $item['product_name']
+                    : (array_key_exists('name', $item) ? $item['name'] : null));
+            $quantity = array_key_exists('quantity', $item)
+                ? $item['quantity']
+                : (array_key_exists('product_quantity', $item) ? $item['product_quantity'] : null);
+
+            if (array_key_exists('unit_amount', $item)) {
+                $rawUnitAmount = $item['unit_amount'];
+            } elseif (array_key_exists('unit_price_tax_incl', $item)) {
+                $rawUnitAmount = $item['unit_price_tax_incl'];
+            } elseif (array_key_exists('unit_price_tax_excl', $item)) {
+                $rawUnitAmount = $item['unit_price_tax_excl'];
+            } elseif (array_key_exists('product_price', $item)) {
+                $rawUnitAmount = $item['product_price'];
+            } else {
+                $rawUnitAmount = null;
+            }
+
+            $candidates[] = array(
+                'title' => is_string($title) ? $title : null,
+                'description' => isset($item['description']) && is_string($item['description']) ? $item['description'] : null,
+                'image_url' => isset($item['image_url']) && is_string($item['image_url']) ? $item['image_url'] : null,
+                'quantity' => $quantity,
+                'unit_amount' => is_string($rawUnitAmount)
+                    ? trim($rawUnitAmount)
+                    : PrestaShopAdapter::formatUnitAmount($rawUnitAmount, 2),
+            );
+        }
+
+        return InvoicePresentation::normalizeProducts($candidates);
     }
 
     /**
@@ -121,12 +185,14 @@ final class GatewayCheckout
 
         $renewCount = is_array($existing) && isset($existing['renew_count']) ? ((int) $existing['renew_count'] + 1) : 0;
         $externalOrderId = 'ps_' . (int) $orderId . '_' . $renewCount;
+        $orderProducts = isset($order['products']) && is_array($order['products']) ? $order['products'] : null;
         $payload = $this->buildInvoicePayload(
             $config->projectId(),
             $amount,
             $currency,
             $externalOrderId,
-            $this->clientId($order)
+            $this->clientId($order),
+            $orderProducts
         );
         $intent = InvoiceCreation::pending(array(
             'id_order' => (int) $orderId,
