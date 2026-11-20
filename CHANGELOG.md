@@ -8,6 +8,10 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-11-20
+
+- chore: rebuild canonical CMS package
+
 ## [1.8.1] - 2026-11-20
 
 - fix(checkout): enforce PHP SDK compatibility across CMS packages
