@@ -94,7 +94,7 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
 
     /**
      * Extract native OrderDetail rows in the order currency without breaking
-     * minimal test stubs where Product/Image/Link classes are not loaded.
+     * minimal test stubs where Product classes are not loaded.
      *
      * @return array<int, mixed>
      */
@@ -129,10 +129,6 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
             $productId = isset($row['product_id']) && is_numeric($row['product_id'])
                 ? (int) $row['product_id']
                 : (isset($row['id_product']) && is_numeric($row['id_product']) ? (int) $row['id_product'] : 0);
-            $productAttributeId = isset($row['product_attribute_id']) && is_numeric($row['product_attribute_id'])
-                ? (int) $row['product_attribute_id']
-                : (isset($row['id_product_attribute']) && is_numeric($row['id_product_attribute']) ? (int) $row['id_product_attribute'] : 0);
-
             $title = isset($row['product_name']) && is_string($row['product_name'])
                 ? $row['product_name']
                 : (isset($row['name']) && is_string($row['name']) ? $row['name'] : null);
@@ -153,12 +149,10 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
 
             $productObj = $this->loadProduct($productId, $idLang, $idShop, $productCache);
             $description = $this->extractProductDescription($productObj, $idLang);
-            $imageUrl = $this->extractProductImageUrl($row, $productObj, $productId, $productAttributeId, $idLang);
 
             $products[] = array(
                 'title' => $title,
                 'description' => $description,
-                'image_url' => $imageUrl,
                 'quantity' => $quantity,
                 'unit_amount' => self::formatUnitAmount($rawUnit, $precision),
             );
@@ -229,79 +223,6 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
         }
 
         return null;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     * @param object|null          $productObj
-     */
-    private function extractProductImageUrl(
-        array $row,
-        $productObj,
-        int $productId,
-        int $productAttributeId,
-        int $idLang
-    ): ?string {
-        if ($productId <= 0) {
-            return null;
-        }
-
-        $idImage = 0;
-        if ($productAttributeId > 0 && class_exists('\\Product') && method_exists('\\Product', 'getCombinationImageById')) {
-            try {
-                $comb = \Product::getCombinationImageById($productAttributeId, $idLang);
-                if (is_array($comb) && isset($comb['id_image']) && is_numeric($comb['id_image'])) {
-                    $idImage = (int) $comb['id_image'];
-                }
-            } catch (\Throwable $e) {
-                $idImage = 0;
-            }
-        }
-
-        if ($idImage <= 0 && isset($row['id_image']) && is_numeric($row['id_image'])) {
-            $idImage = (int) $row['id_image'];
-        }
-        if ($idImage <= 0 && isset($row['image']) && is_object($row['image']) && isset($row['image']->id) && is_numeric($row['image']->id)) {
-            $idImage = (int) $row['image']->id;
-        }
-        if ($idImage <= 0 && class_exists('\\Image') && method_exists('\\Image', 'getCover')) {
-            try {
-                $cover = \Image::getCover($productId);
-                if (is_array($cover) && isset($cover['id_image']) && is_numeric($cover['id_image'])) {
-                    $idImage = (int) $cover['id_image'];
-                }
-            } catch (\Throwable $e) {
-                $idImage = 0;
-            }
-        }
-
-        if ($idImage <= 0 || !class_exists('\\Context')) {
-            return null;
-        }
-
-        try {
-            $context = \Context::getContext();
-            $link = is_object($context) && isset($context->link) ? $context->link : null;
-            if (!is_object($link) || !method_exists($link, 'getImageLink')) {
-                return null;
-            }
-
-            $linkRewrite = is_object($productObj) && isset($productObj->link_rewrite)
-                ? self::localizedString($productObj->link_rewrite, $idLang)
-                : '';
-            if ($linkRewrite === null || trim($linkRewrite) === '') {
-                return null;
-            }
-
-            $imageType = class_exists('\\ImageType') && method_exists('\\ImageType', 'getFormattedName')
-                ? \ImageType::getFormattedName('home')
-                : 'home_default';
-
-            $url = $link->getImageLink(trim($linkRewrite), $productId . '-' . $idImage, $imageType);
-            return is_string($url) && trim($url) !== '' ? trim($url) : null;
-        } catch (\Throwable $e) {
-            return null;
-        }
     }
 
     /**

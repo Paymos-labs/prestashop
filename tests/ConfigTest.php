@@ -4,6 +4,21 @@ declare(strict_types=1);
 
 use PaymosPrestaShop\Config;
 
+function test_prestashop_composer_requires_product_presentation_sdk_floor()
+{
+    $composer = json_decode((string) file_get_contents(dirname(__DIR__) . '/composer.json'), true);
+    assertTrueValue(is_array($composer), 'composer.json must decode to an array.');
+    assertSameValue('^1.11.0', $composer['require']['paymos/php-sdk'], 'Product presentation and existing retries require SDK ^1.11.0.');
+    assertSameValue('paymos/vendor', $composer['config']['vendor-dir'], 'Source development dependencies keep their module-relative vendor directory.');
+    assertSameValue('../php-sdk', $composer['repositories'][0]['url'], 'Source development keeps its monorepo SDK repository.');
+}
+
+function test_prestashop_mirror_exercises_published_minimum_sdk()
+{
+    $workflow = (string) file_get_contents(dirname(__DIR__) . '/.github/workflows/ci.yml');
+    assertContainsValue('git clone --depth 1 --branch v1.11.0 https://github.com/Paymos-labs/php-sdk.git', $workflow, 'Mirror tests must exercise the published minimum SDK.');
+}
+
 function test_prestashop_config_builds_client_config_and_secret_map()
 {
     $config = Config::fromSettings(prestashop_settings());

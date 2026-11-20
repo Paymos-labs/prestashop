@@ -387,7 +387,6 @@ function test_prestashop_gateway_checkout_single_product_and_optional_fields()
             array(
                 'product_name' => "<b>Canvas</b> &amp; Blue\0",
                 'description' => "<p>Museum grade</p><p>Cotton\0</p>",
-                'image_url' => 'https://shop.example/canvas.webp',
                 'product_quantity' => 2,
                 'unit_price_tax_incl' => '24.50',
             ),
@@ -415,20 +414,18 @@ function test_prestashop_gateway_checkout_single_product_and_optional_fields()
                 'quantity' => 2,
                 'unit_amount' => '24.50',
                 'description' => "Museum grade\nCotton",
-                'image_url' => 'https://shop.example/canvas.webp',
             ),
         ),
         $payload['products'],
         'single PrestaShop item must normalize cleanly.'
     );
 
-    // Optional blank description and non-HTTPS image_url must omit optional keys without failing the item.
+    // Optional blank description must omit optional keys without failing the item.
     $checkout = new GatewayCheckout(new InMemoryInvoiceStore(), new FakePrestaShopAdapter());
     $minimal = $checkout->buildInvoicePayload('prj_123', '47.00', 'USD', 'ps_42_0', '77', array(
         array(
             'title' => 'Canvas · Blue',
             'description' => '<p>&nbsp;</p>',
-            'image_url' => 'http://shop.example/insecure.png',
             'quantity' => '2',
             'unit_amount' => '24.50',
         ),
@@ -436,7 +433,7 @@ function test_prestashop_gateway_checkout_single_product_and_optional_fields()
     assertSameValue(
         array(array('title' => 'Canvas · Blue', 'quantity' => 2, 'unit_amount' => '24.50')),
         $minimal['products'],
-        'blank description and http image_url must be omitted without failing item.'
+        'blank description must be omitted without failing item.'
     );
 
     // Adapter formatting helper preserves precision without float rounding surprises.
@@ -456,7 +453,6 @@ function test_prestashop_gateway_checkout_cart_products_and_all_or_nothing_fallb
             array(
                 'title' => 'Canvas · Blue',
                 'description' => '<p>Giclée print</p>',
-                'image_url' => 'https://shop.example/canvas.webp',
                 'quantity' => 2,
                 'unit_amount' => '15.00',
             ),
@@ -465,7 +461,6 @@ function test_prestashop_gateway_checkout_cart_products_and_all_or_nothing_fallb
             array(
                 'title' => 'Notebook',
                 'description' => null,
-                'image_url' => 'https://user:pass@shop.example/img.png',
                 'quantity' => 1,
                 'unit_amount' => '12.50',
             ),
@@ -493,7 +488,6 @@ function test_prestashop_gateway_checkout_cart_products_and_all_or_nothing_fallb
                 'quantity' => 2,
                 'unit_amount' => '15.00',
                 'description' => 'Giclée print',
-                'image_url' => 'https://shop.example/canvas.webp',
             ),
             array(
                 'title' => 'Notebook',
@@ -548,7 +542,6 @@ function test_prestashop_gateway_checkout_retry_replays_original_products_payloa
             array(
                 'title' => 'Studio Pro',
                 'description' => 'One-month access',
-                'image_url' => 'https://shop.example/studio-pro.webp',
                 'quantity' => 2,
                 'unit_amount' => '24.50',
             ),
@@ -618,4 +611,63 @@ function test_prestashop_gateway_checkout_retry_replays_original_products_payloa
     $replayed = json_decode($requests[1]['body'], true);
     assertSameValue('Studio Pro', $replayed['products'][0]['title'], 'replayed payload must keep original Studio Pro item.');
     assertSameValue('Priority Support', $replayed['products'][1]['title'], 'replayed payload must keep original second item.');
+}
+
+function test_prestashop_historical_pending_retry_projects_images_without_rewriting_json_or_recalculating_products()
+{
+    $store = new InMemoryInvoiceStore();
+    $adapter = new FakePrestaShopAdapter();
+    $adapter->orders[42]['products'] = array(array('title' => 'Changed native cart', 'quantity' => 1, 'unit_amount' => '100.00'));
+    $historicalPayload = array(
+        'project_id' => 'prj_123',
+        'amount' => '100.00',
+        'currency' => 'USD',
+        'external_order_id' => 'ps_42_0',
+        'client_id' => '77',
+        'products' => array(
+            array('title' => '  <b>Frozen original</b>  ', 'description' => "  Line 1\nLine 2 — Ω 🚀  ",
+                'image_url' => 'https://shop.example/legacy.webp', 'quantity' => 2, 'unit_amount' => '12345678901234567890.123456789012345678'),
+            array('title' => 'Support', 'quantity' => 1, 'unit_amount' => '0.00', 'image_url' => null),
+        ),
+    );
+    // Simulate an old release's durable intent after its create response was lost.
+    $pending = \PaymosPrestaShop\InvoiceCreation::pending(prestashop_snapshot(), $historicalPayload);
+    $store->save($pending);
+    $pending = $store->findByOrderId(42);
+    $storedJson = $pending['payment_url'];
+    $storedRow = serialize($pending);
+    $transport = new class($store, $storedJson) implements \Paymos\Http\TransportInterface {
+        public $requests = array();
+        private $store;
+        private $storedJson;
+        public function __construct($store, $storedJson) { $this->store = $store; $this->storedJson = $storedJson; }
+        public function request($method, $url, array $headers, $body, $timeoutSeconds)
+        {
+            assertSameValue($this->storedJson, $this->store->findByOrderId(42)['payment_url'], 'Pending JSON must remain frozen before the recovery POST.');
+            $this->requests[] = array('method' => $method, 'body' => $body);
+            throw new RuntimeException('Lost recovery response.');
+        }
+    };
+    $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
+    $factory = static function () use ($client) { return $client; };
+
+    $failed = false;
+    try { (new GatewayCheckout($store, $adapter, $factory))->start(42, prestashop_settings()); }
+    catch (RuntimeException $e) { $failed = true; }
+    assertTrueValue($failed, 'Lost recovery response must leave the original intent pending.');
+    assertSameValue(1, count($transport->requests), 'Historical retry must issue one recovery POST.');
+    $expected = $historicalPayload;
+    unset($expected['products'][0]['image_url'], $expected['products'][1]['image_url']);
+    assertSameValue($expected, json_decode($transport->requests[0]['body'], true), 'Recovery may remove only image_url, preserving frozen text, exact prices, item order and financial identity.');
+    assertSameValue($storedRow, serialize($store->findByOrderId(42)), 'Failed recovery must preserve the complete pending row byte-for-byte.');
+
+    $tampered = $store->findByOrderId(42);
+    $tampered['amount'] = '101.00';
+    $store->save($tampered);
+    $failed = false;
+    try { (new GatewayCheckout($store, $adapter, $factory))->start(42, prestashop_settings()); }
+    catch (RuntimeException $e) { $failed = true; }
+    assertTrueValue($failed, 'Legacy projection must retain the original payload versus row amount guard.');
+    assertSameValue(1, count($transport->requests), 'Mismatched persisted money must be rejected before any second HTTP request.');
+    assertSameValue($storedJson, $store->findByOrderId(42)['payment_url'], 'Failed identity validation must not rewrite the historical JSON.');
 }

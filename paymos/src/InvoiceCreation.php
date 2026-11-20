@@ -34,6 +34,12 @@ final class InvoiceCreation
             || ($payload['amount'] ?? '') !== $row['amount'] || ($payload['currency'] ?? '') !== $row['currency']) {
             throw new \RuntimeException('Paymos invoice creation intent is invalid.');
         }
+        // Decode and project a copy; never rewrite the saved pending request for this retired key.
+        if (isset($payload['products']) && is_array($payload['products'])) {
+            foreach ($payload['products'] as $index => $item) {
+                if (is_array($item)) { unset($payload['products'][$index]['image_url']); }
+            }
+        }
         $response = $client->invoices()->create($payload);
         $assertOwned();
         if (!is_string($response['invoice_id'] ?? null) || $response['invoice_id'] === ''
