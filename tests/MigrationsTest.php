@@ -10,11 +10,14 @@ use PaymosPrestaShop\PrestaShopDb;
 final class LegacyPrestaShopMetadataDb
 {
     public $columns;
+    public $paymentUrlType;
     public $alters = array();
+    public $ddl = array();
 
-    public function __construct(array $missing)
+    public function __construct(array $missing, string $paymentUrlType = 'mediumtext')
     {
-        $this->columns = array('owner_token' => true, 'paid_late_noted' => true);
+        $this->columns = array('owner_token' => true, 'paid_late_noted' => true, 'payment_url' => true);
+        $this->paymentUrlType = $paymentUrlType;
         foreach ($missing as $column) {
             $this->columns[$column] = false;
         }
@@ -31,17 +34,27 @@ final class LegacyPrestaShopMetadataDb
         if (!preg_match('/^SHOW COLUMNS FROM `[^`]+` LIKE \'([^\']+)\'$/', $sql, $match)) {
             throw new RuntimeException('Unexpected metadata query: ' . $sql);
         }
-        return !empty($this->columns[$match[1]]) ? array(array('Field' => $match[1])) : array();
+        if (empty($this->columns[$match[1]])) {
+            return array();
+        }
+        if ($match[1] === 'payment_url') {
+            return array(array('Field' => 'payment_url', 'Type' => $this->paymentUrlType));
+        }
+        return array(array('Field' => $match[1]));
     }
 
     public function execute($sql)
     {
+        $this->ddl[] = $sql;
         if (preg_match('/^ALTER TABLE `[^`]+` ADD COLUMN `([^`]+)`/', $sql, $match)) {
             if (!empty($this->columns[$match[1]])) {
                 throw new RuntimeException('Duplicate column: ' . $match[1]);
             }
             $this->columns[$match[1]] = true;
             $this->alters[] = $match[1];
+        } elseif (preg_match('/^ALTER TABLE `[^`]+` MODIFY COLUMN `payment_url` MEDIUMTEXT NOT NULL$/', $sql)) {
+            $this->paymentUrlType = 'mediumtext';
+            $this->alters[] = 'payment_url:mediumtext';
         }
         return true;
     }
@@ -58,4 +71,14 @@ function test_prestashop_migrations_work_with_native_scalar_limit_behavior()
         assertTrueValue(Migrations::install($adapter), 'A repeat is safe.');
         assertSameValue($missing, $native->alters, 'A repeat never adds an existing column.');
     }
+
+    // BUG-1434: fresh installs create payment_url as MEDIUMTEXT, and legacy TEXT columns widen idempotently.
+    $legacy = new LegacyPrestaShopMetadataDb(array(), 'text');
+    $adapter = new PrestaShopDb($legacy);
+    assertTrueValue(Migrations::install($adapter), 'Legacy TEXT payment_url migrates to MEDIUMTEXT.');
+    assertContainsValue('`payment_url` MEDIUMTEXT NOT NULL', $legacy->ddl[0], 'Fresh CREATE TABLE defines payment_url as MEDIUMTEXT NOT NULL.');
+    assertSameValue(array('payment_url:mediumtext'), $legacy->alters, 'Legacy TEXT payment_url runs one MODIFY COLUMN ALTER.');
+    assertSameValue('mediumtext', $legacy->paymentUrlType, 'Legacy payment_url is widened to mediumtext.');
+    assertTrueValue(Migrations::install($adapter), 'Repeat install after widening is idempotent.');
+    assertSameValue(array('payment_url:mediumtext'), $legacy->alters, 'Widened MEDIUMTEXT payment_url is not altered again.');
 }

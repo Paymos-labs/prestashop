@@ -206,7 +206,7 @@ final class GatewayCheckout
         $this->store->save($intent);
         $created = InvoiceCreation::recover($intent, $this->store, $this->client($config), function (): void {
             if (method_exists($this->prestashop, 'assertOrderLockOwned')) { $this->prestashop->assertOrderLockOwned(); }
-        });
+        }, $payload);
 
         return array(
             'invoice_id' => (string) $created['paymos_invoice_id'],

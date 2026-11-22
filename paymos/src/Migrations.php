@@ -33,7 +33,7 @@ final class Migrations
             `project_id` VARCHAR(128) NOT NULL,
             `amount` VARCHAR(64) NOT NULL,
             `currency` VARCHAR(16) NOT NULL,
-            `payment_url` TEXT NOT NULL,
+            `payment_url` MEDIUMTEXT NOT NULL,
             `status` VARCHAR(64) NOT NULL,
             `renew_count` INT(11) UNSIGNED NOT NULL DEFAULT 0,
             `paid_late_noted` VARCHAR(128) NULL,
@@ -78,6 +78,19 @@ final class Migrations
         // on MySQL and MariaDB alike, so the ALTER runs once per shop.
         if (count($db->getRows('SHOW COLUMNS FROM `' . $invoiceTable . '` LIKE \'paid_late_noted\'')) === 0) {
             $db->execute('ALTER TABLE `' . $invoiceTable . '` ADD COLUMN `paid_late_noted` VARCHAR(128) NULL');
+        }
+
+        // Tables created before BUG-1434 defined `payment_url` as TEXT (65 KB),
+        // which overflows on large multi-item UTF-8 pending creation intents.
+        $paymentUrlColumns = $db->getRows('SHOW COLUMNS FROM `' . $invoiceTable . '` LIKE \'payment_url\'');
+        if (count($paymentUrlColumns) > 0 && is_array($paymentUrlColumns[0])) {
+            $rawType = isset($paymentUrlColumns[0]['Type'])
+                ? $paymentUrlColumns[0]['Type']
+                : (isset($paymentUrlColumns[0]['type']) ? $paymentUrlColumns[0]['type'] : '');
+            $columnType = strtolower(trim((string) $rawType));
+            if ($columnType === 'text' || $columnType === 'tinytext' || strpos($columnType, 'varchar') === 0) {
+                $db->execute('ALTER TABLE `' . $invoiceTable . '` MODIFY COLUMN `payment_url` MEDIUMTEXT NOT NULL');
+            }
         }
 
         RefundIntentStore::install($db);

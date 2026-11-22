@@ -671,3 +671,155 @@ function test_prestashop_historical_pending_retry_projects_images_without_rewrit
     assertSameValue(1, count($transport->requests), 'Mismatched persisted money must be rejected before any second HTTP request.');
     assertSameValue($storedJson, $store->findByOrderId(42)['payment_url'], 'Failed identity validation must not rewrite the historical JSON.');
 }
+
+function test_prestashop_pending_intent_handles_50_cyrillic_emoji_items_without_text_overflow()
+{
+    // BUG-1434: 50 items with 2,000-scalar Cyrillic + emoji descriptions produce ~400 KB UTF-8 JSON.
+    $largeProducts = array();
+    $descUnit = 'Товар🚀'; // 6 UTF-8 scalars (2+2+2+2+2+4 = 14 bytes)
+    $longDescription = str_repeat($descUnit, 333) . 'ЯЯ'; // 2,000 scalars
+    for ($i = 1; $i <= 50; $i++) {
+        $largeProducts[] = array(
+            'title' => 'Позиция №' . $i . ' 🚀',
+            'description' => $longDescription,
+            'quantity' => 1,
+            'unit_amount' => '2.00',
+        );
+    }
+
+    // Store enforcing a strict 65,535-byte column ceiling proves even an un-migrated TEXT column cannot overflow.
+    $strictStore = new class implements \PaymosPrestaShop\InvoiceStoreInterface {
+        public $inner;
+        public $pendingPaymentUrlBytes = 0;
+
+        public function __construct()
+        {
+            $this->inner = new InMemoryInvoiceStore();
+        }
+
+        public function findByOrderId($orderId) { return $this->inner->findByOrderId($orderId); }
+        public function findByExternalOrderId($externalOrderId) { return $this->inner->findByExternalOrderId($externalOrderId); }
+        public function updateStatus($paymosInvoiceId, $status) { $this->inner->updateStatus($paymosInvoiceId, $status); }
+        public function findUnpaidRecent($limit, $sinceTimestamp) { return $this->inner->findUnpaidRecent($limit, $sinceTimestamp); }
+
+        public function save(array $row)
+        {
+            $len = strlen((string) $row['payment_url']);
+            if ($len > 65535) {
+                throw new RuntimeException('Data too long for column payment_url: ' . $len . ' bytes');
+            }
+            if (($row['status'] ?? '') === 'creating') {
+                $this->pendingPaymentUrlBytes = $len;
+            }
+            $this->inner->save($row);
+        }
+    };
+
+    $adapter = new FakePrestaShopAdapter();
+    $adapter->orders[42] = prestashop_order(array('total' => '100.00', 'products' => $largeProducts));
+
+    $transport = new class (array(
+        new RuntimeException('lost first response'),
+        new HttpResponse(201, json_encode(array(
+            'invoice_id' => 'inv_large_50',
+            'status' => 'awaiting_client',
+            'payment_url' => 'https://checkout.paymos.test/inv_large_50',
+        )), array()),
+        prestashop_live_invoice_response('inv_large_50', 'awaiting_client', time() + 600),
+    )) implements \Paymos\Http\TransportInterface {
+        private $script;
+        public $requests = array();
+
+        public function __construct(array $script) { $this->script = $script; }
+
+        public function request($method, $url, array $headers, $body, $timeoutSeconds)
+        {
+            $this->requests[] = array('method' => (string) $method, 'url' => (string) $url, 'body' => (string) $body);
+            $next = array_shift($this->script);
+            if ($next instanceof \Throwable) {
+                throw $next;
+            }
+            return $next;
+        }
+    };
+    $client = new Client(new ClientConfig('pk_test_123', 'sk_test_123', 'https://api.paymos.test'), $transport);
+    $factory = static function () use ($client) { return $client; };
+
+    $failed = false;
+    try {
+        (new GatewayCheckout($strictStore, $adapter, $factory))->start(42, prestashop_settings());
+    } catch (RuntimeException $e) {
+        $failed = true;
+    }
+    assertTrueValue($failed, 'Lost create response surfaces failure after persisting durable compact pending intent.');
+    assertTrueValue($strictStore->pendingPaymentUrlBytes > 0 && $strictStore->pendingPaymentUrlBytes <= \PaymosPrestaShop\InvoiceCreation::MAX_PENDING_JSON_BYTES,
+        'Oversized pending JSON drops products to stay safely under byte limit.');
+
+    // Initial live POST still carried all 50 Cyrillic/emoji items intact.
+    $firstBody = json_decode($transport->requests[0]['body'], true);
+    assertSameValue(50, count($firstBody['products']), 'Initial live create transmits all 50 Cyrillic/emoji items.');
+    assertSameValue('Позиция №1 🚀', $firstBody['products'][0]['title'], 'Initial live create preserves UTF-8 title.');
+
+    // Durable pending snapshot omitted products cleanly without truncating JSON.
+    $pendingRow = $strictStore->findByOrderId(42);
+    assertSameValue('creating', $pendingRow['status'], 'Pending row stays in creating status.');
+    $pendingDecoded = json_decode($pendingRow['payment_url'], true, 512, JSON_THROW_ON_ERROR);
+    assertFalseValue(array_key_exists('products', $pendingDecoded), 'Oversized durable snapshot omits products.');
+    assertSameValue('ps_42_0', $pendingDecoded['external_order_id'], 'Durable snapshot retains external_order_id.');
+
+    // Crash recovery succeeds cleanly using the compact pending snapshot.
+    $recovered = (new GatewayCheckout($strictStore, $adapter, $factory))->start(42, prestashop_settings());
+    assertSameValue('inv_large_50', $recovered['invoice_id'], 'Recovery binds the invoice without JsonException.');
+    assertSameValue('https://checkout.paymos.test/inv_large_50', $recovered['payment_url'], 'Recovery returns checkout URL.');
+
+    // Medium Cyrillic payload uses JSON_UNESCAPED_UNICODE (no \uXXXX bloat) and retains products in pending snapshot.
+    $mediumPending = \PaymosPrestaShop\InvoiceCreation::pending(prestashop_snapshot(), array(
+        'project_id' => 'prj_123',
+        'amount' => '100.00',
+        'currency' => 'USD',
+        'external_order_id' => 'ps_42_0',
+        'products' => array(
+            array('title' => 'Кириллица 🚀 / Тест', 'quantity' => 1, 'unit_amount' => '100.00'),
+        ),
+    ));
+    assertContainsValue('Кириллица 🚀 / Тест', $mediumPending['payment_url'], 'Pending JSON uses unescaped Unicode and slashes.');
+}
+
+function test_prestashop_adapter_uses_tax_included_display_handles_db_strings_and_locale_floats()
+{
+    // BUG-1478: Group::getPriceDisplayMethod returns DB string '0' or '1'.
+    $adapter = new \PaymosPrestaShop\PrestaShopAdapter();
+    $method = new ReflectionMethod($adapter, 'usesTaxIncludedDisplay');
+    if (PHP_VERSION_ID < 80100) {
+        $method->setAccessible(true);
+    }
+    $previousDisplay = \Group::$priceDisplayMethod;
+    try {
+        \Group::$priceDisplayMethod = '0';
+        assertTrueValue($method->invoke($adapter, 77), "DB string '0' must match PS_TAX_INC (0).");
+        \Group::$priceDisplayMethod = 0;
+        assertTrueValue($method->invoke($adapter, 77), 'Integer 0 must match PS_TAX_INC (0).');
+        \Group::$priceDisplayMethod = '1';
+        assertFalseValue($method->invoke($adapter, 77), "DB string '1' must be treated as tax-excluded.");
+        \Group::$priceDisplayMethod = 1;
+        assertFalseValue($method->invoke($adapter, 77), 'Integer 1 must be treated as tax-excluded.');
+        \Group::$priceDisplayMethod = false;
+        assertTrueValue($method->invoke($adapter, 77), 'Non-numeric fallback stays tax-included.');
+    } finally {
+        \Group::$priceDisplayMethod = $previousDisplay;
+    }
+
+    // BUG-1467: float unit_amount formatting must stay dot-decimal even under comma-decimal LC_NUMERIC.
+    $previousLocale = setlocale(LC_NUMERIC, '0');
+    setlocale(LC_NUMERIC, 'de_DE.UTF-8', 'de_DE', 'German_Germany.1252', 'fr_FR.UTF-8', 'French_France.1252');
+    try {
+        assertSameValue('24.50', \PaymosPrestaShop\PrestaShopAdapter::formatUnitAmount(24.5, 2), 'Float 24.5 formats dot-decimal.');
+        assertSameValue('19.99', \PaymosPrestaShop\PrestaShopAdapter::formatUnitAmount(19.99, 2), 'Float 19.99 keeps exact cents without IEEE-754 drift.');
+        assertSameValue('0.00', \PaymosPrestaShop\PrestaShopAdapter::formatUnitAmount(0.0, 2), 'Float 0.0 formats cleanly.');
+        assertSameValue('0.000000001', \PaymosPrestaShop\PrestaShopAdapter::formatUnitAmount(1e-9, 2), 'Scientific float formats cleanly.');
+    } finally {
+        if (is_string($previousLocale)) {
+            setlocale(LC_NUMERIC, $previousLocale);
+        }
+    }
+}

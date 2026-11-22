@@ -167,7 +167,10 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
             try {
                 $customer = new \Customer($customerId);
                 if (isset($customer->id_default_group)) {
-                    return \Group::getPriceDisplayMethod((int) $customer->id_default_group) === PS_TAX_INC;
+                    $method = \Group::getPriceDisplayMethod((int) $customer->id_default_group);
+                    if (is_numeric($method)) {
+                        return (int) $method === (int) PS_TAX_INC;
+                    }
                 }
             } catch (\Throwable $e) {
                 return true;
@@ -262,12 +265,19 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
             if (!is_finite($raw)) {
                 return null;
             }
-            if ($raw < 0) {
+            if ($raw < 0.0) {
                 return '-1';
             }
-            $str = (string) $raw;
-            if (stripos($str, 'e') !== false) {
-                $str = rtrim(rtrim(sprintf('%.18F', $raw), '0'), '.');
+            if ($raw == 0.0) {
+                $str = '0';
+            } else {
+                $str = json_encode($raw);
+                if (!is_string($str) || $str === '' || strpos($str, ',') !== false || stripos($str, 'e') !== false) {
+                    $str = rtrim(rtrim(sprintf('%.18F', $raw), '0'), '.');
+                }
+                if ($str === '' || $str === '0') {
+                    return null;
+                }
             }
         } elseif (is_string($raw)) {
             $str = trim($raw);

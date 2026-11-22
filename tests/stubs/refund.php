@@ -61,7 +61,16 @@ namespace {
     }
 
     class Customer { public $id_default_group = 1; public function __construct($id) {} }
-    class Group { public static function getPriceDisplayMethod($id) { return 0; } }
+    class Group
+    {
+        /** @var mixed */
+        public static $priceDisplayMethod = 0;
+
+        public static function getPriceDisplayMethod($id)
+        {
+            return self::$priceDisplayMethod;
+        }
+    }
     if (!defined('PS_TAX_INC')) { define('PS_TAX_INC', 0); }
 
     class Validate

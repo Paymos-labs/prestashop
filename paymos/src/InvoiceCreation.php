@@ -12,6 +12,16 @@ use Paymos\Plugin\StatusMapper;
  */
 final class InvoiceCreation
 {
+    /**
+     * Conservative UTF-8 byte ceiling for the durable pending intent JSON stored
+     * in `payment_url`. Stays safely below MySQL's 65,535-byte TEXT limit even if
+     * a shop has not yet widened the column to MEDIUMTEXT, while preserving
+     * `products` in normal multi-item UTF-8 carts. When a large cart exceeds this
+     * budget, `products` is omitted from the durable snapshot (Paymos idempotency
+     * does not compare `products`) while the live create call still sends it.
+     */
+    public const MAX_PENDING_JSON_BYTES = 60000;
+
     public static function isPending(array $row): bool
     {
         return ($row['status'] ?? '') === 'creating';
@@ -19,13 +29,20 @@ final class InvoiceCreation
 
     public static function pending(array $row, array $payload): array
     {
+        $flags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR;
+        $encoded = json_encode($payload, $flags);
+        if (strlen($encoded) > self::MAX_PENDING_JSON_BYTES && array_key_exists('products', $payload)) {
+            $compact = $payload;
+            unset($compact['products']);
+            $encoded = json_encode($compact, $flags);
+        }
         $row['paymos_invoice_id'] = 'pending:' . hash('sha256', (string) $row['external_order_id']);
-        $row['payment_url'] = json_encode($payload, JSON_THROW_ON_ERROR);
+        $row['payment_url'] = $encoded;
         $row['status'] = 'creating';
         return $row;
     }
 
-    public static function recover(array $row, InvoiceStoreInterface $store, $client, callable $assertOwned): array
+    public static function recover(array $row, InvoiceStoreInterface $store, $client, callable $assertOwned, ?array $livePayload = null): array
     {
         if (!self::isPending($row)) { return $row; }
         $payload = json_decode((string) $row['payment_url'], true, 512, JSON_THROW_ON_ERROR);
@@ -34,13 +51,23 @@ final class InvoiceCreation
             || ($payload['amount'] ?? '') !== $row['amount'] || ($payload['currency'] ?? '') !== $row['currency']) {
             throw new \RuntimeException('Paymos invoice creation intent is invalid.');
         }
+        $outgoing = $payload;
+        if ($livePayload !== null) {
+            if (($livePayload['external_order_id'] ?? '') !== $row['external_order_id']
+                || ($livePayload['project_id'] ?? '') !== $row['project_id']
+                || ($livePayload['amount'] ?? '') !== $row['amount']
+                || ($livePayload['currency'] ?? '') !== $row['currency']) {
+                throw new \RuntimeException('Paymos live invoice creation payload does not match durable intent.');
+            }
+            $outgoing = $livePayload;
+        }
         // Decode and project a copy; never rewrite the saved pending request for this retired key.
-        if (isset($payload['products']) && is_array($payload['products'])) {
-            foreach ($payload['products'] as $index => $item) {
-                if (is_array($item)) { unset($payload['products'][$index]['image_url']); }
+        if (isset($outgoing['products']) && is_array($outgoing['products'])) {
+            foreach ($outgoing['products'] as $index => $item) {
+                if (is_array($item)) { unset($outgoing['products'][$index]['image_url']); }
             }
         }
-        $response = $client->invoices()->create($payload);
+        $response = $client->invoices()->create($outgoing);
         $assertOwned();
         if (!is_string($response['invoice_id'] ?? null) || $response['invoice_id'] === ''
             || !is_string($response['payment_url'] ?? null) || $response['payment_url'] === '') {
