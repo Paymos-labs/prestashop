@@ -1,6 +1,6 @@
 {
   "source_repository": "Paymos-labs/paymos",
   "source_path": "plugins/prestashop-paymos",
-  "source_commit": "0c5b330124824ddf3f0e07b80d7aa607b65413f5",
-  "version": "1.8.4"
+  "source_commit": "25b715222455d1a179e191038eb9a34357750a75",
+  "version": "1.8.5"
 }
