@@ -1,5 +1,7 @@
 # Paymos for PrestaShop
 
+**English** | [简体中文](README.zh-CN.md) | [Русский](README.ru.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [Türkçe](README.tr.md)
+
 Official Paymos payment module for PrestaShop. It offers stablecoin payment at
 checkout, redirects the customer to the hosted Paymos checkout, and brings the
 order to **Payment accepted** once the transfer confirms — from a signed callback,
@@ -9,6 +11,10 @@ Installing it creates three order states of its own, so a crypto payment does no
 have to borrow a state that means something else in your back office. The cart's
 currency is what the invoice is denominated in, and the rate is fixed the moment
 the customer pays.
+
+[![Watch: 12 Official CMS Crypto Plugins — 1-Click Connect (Paymos)](https://i.ytimg.com/vi/VMLUGVumYkg/maxresdefault.jpg)](https://www.youtube.com/watch?v=VMLUGVumYkg)
+
+> **Video walkthrough (1:12, subtitles in 6 languages):** [Watch on YouTube](https://www.youtube.com/watch?v=VMLUGVumYkg)
 
 ## Requirements
 
