@@ -11,7 +11,7 @@
   ],
   "require": {
     "php": ">=7.4",
-    "paymos/php-sdk": "^1.11.0"
+    "paymos/php-sdk": "^1.12.0"
   },
   "config": {
     "vendor-dir": "paymos/vendor",

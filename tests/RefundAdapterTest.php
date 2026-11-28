@@ -192,6 +192,8 @@ final class PrestaShopRefundTransport implements TransportInterface
     public $wire = array();
     public $lost = false;
     public $invoiceExtra = array();
+    /** Statuses the next refund reads answer with (temporary 401/403/404 after an accepted POST). */
+    public $refundReadFailures = array();
     public $store;
     public $db;
 
@@ -222,6 +224,12 @@ final class PrestaShopRefundTransport implements TransportInterface
         }
         if (strpos($url, '/v1/invoices/') !== false) {
             return new HttpResponse(200, json_encode(array_replace(array('invoice_id' => 'inv_123', 'project_id' => 'prj_123', 'is_test' => true), $this->invoiceExtra)), array());
+        }
+        if ($this->refundReadFailures) {
+            $status = (int) array_shift($this->refundReadFailures);
+            return new HttpResponse($status, json_encode(array('type' => 'https://api.paymos.io/errors/unavailable', 'title' => 'Unavailable',
+                'status' => $status, 'detail' => 'Simulated temporary refund read failure', 'code' => 'refund_not_found')),
+                array('content-type' => 'application/problem+json'));
         }
         $id = basename($url);
         if (!isset($this->wire[$id])) { throw new RuntimeException('unexpected_get'); }
@@ -337,6 +345,28 @@ function test_prestashop_refund_over20_then_full100_and_reorg_recompletion()
     prestashop_refund_throws(static function () use ($adapter) { $adapter->request(42, 'full', 'token-new-afterfull'); }, 'refund_payment_unresolved_or_refunded');
     $posts = array_values(array_filter($transport->requests, static function ($r) { return $r[0] === 'POST'; }));
     assertSameValue(2, count($posts), 'Only overpayment and full cash requests.');
+}
+
+/**
+ * BUG-1347 (feature-audit 3.11): the server accepted the refund POST, but the
+ * reverse read right after it answered a temporary 401/403/404. The next
+ * reconcile reads again and the completed refund is projected.
+ */
+function test_prestashop_refund_accepted_refund_survives_a_temporary_reverse_read_failure()
+{
+    foreach (array(401, 403, 404) as $status) {
+        list($adapter, $store, $native, $transport) = prestashop_refund_fixture();
+        $transport->refundReadFailures = array($status);
+        $over = $adapter->request(42, 'overpayment', 'token-readretry-' . $status);
+        $transport->wire['w_over']['status'] = 'completed';
+        $adapter->reconcile($over->operationId());
+        $after = $store->getIntent($over->operationId());
+        assertSameValue('w_over', $after->withdrawalId(), $status . ': the accepted refund is bound after the read recovers.');
+        assertSameValue('completed', $after->cashState(), $status . ': the cash refund is completed.');
+        assertSameValue(1, count($native->notes), $status . ': one cash-only note.');
+        $posts = array_values(array_filter($transport->requests, static function ($r) { return $r[0] === 'POST'; }));
+        assertSameValue(1, count($posts), $status . ': no second refund is sent.');
+    }
 }
 
 function test_prestashop_refund_unknown_reuses_committed_mode_key_after_restart()
