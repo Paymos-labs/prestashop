@@ -139,6 +139,11 @@ final class PrestaShopAdapter implements PrestaShopAdapterInterface
             $priceKey = $taxIncluded ? 'unit_price_tax_incl' : 'unit_price_tax_excl';
             if (array_key_exists($priceKey, $row)) {
                 $rawUnit = $row[$priceKey];
+                if (!$taxIncluded && is_numeric($rawUnit)) {
+                    // order_detail keeps the tax-excluded unit price with six
+                    // decimals; the shop shows it rounded to the currency.
+                    $rawUnit = number_format(round((float) $rawUnit, $precision), $precision, '.', '');
+                }
             } elseif (array_key_exists('unit_price_tax_incl', $row)) {
                 $rawUnit = $row['unit_price_tax_incl'];
             } elseif (array_key_exists('product_price', $row)) {

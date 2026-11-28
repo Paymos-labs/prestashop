@@ -785,6 +785,43 @@ function test_prestashop_pending_intent_handles_50_cyrillic_emoji_items_without_
     assertContainsValue('Кириллица 🚀 / Тест', $mediumPending['payment_url'], 'Pending JSON uses unescaped Unicode and slashes.');
 }
 
+function test_prestashop_adapter_rounds_tax_excluded_unit_price_to_the_currency_precision()
+{
+    // CMSP-51: order_detail keeps unit_price_tax_excl with six decimals
+    // (16.658333 for a 19.99 price with 20 % tax). A customer group that shows
+    // prices without tax read "16.658333 EUR" per item at checkout.
+    $order = new class(42) extends \Order {
+        public $id_customer = 77;
+        public function getProducts()
+        {
+            return array(
+                array('product_id' => 0, 'product_name' => 'Mug', 'product_quantity' => '2',
+                    'unit_price_tax_excl' => '16.658333', 'unit_price_tax_incl' => '19.990000'),
+                array('product_id' => 0, 'product_name' => 'Tea', 'product_quantity' => '1',
+                    'unit_price_tax_excl' => '12.500000', 'unit_price_tax_incl' => '15.000000'),
+            );
+        }
+    };
+    $adapter = new \PaymosPrestaShop\PrestaShopAdapter();
+    $method = new ReflectionMethod($adapter, 'extractOrderProducts');
+    if (PHP_VERSION_ID < 80100) {
+        $method->setAccessible(true);
+    }
+    $previousDisplay = \Group::$priceDisplayMethod;
+    try {
+        \Group::$priceDisplayMethod = 1;
+        $excluded = $method->invoke($adapter, $order, 2);
+        assertSameValue('16.66', $excluded[0]['unit_amount'], 'a tax-excluded unit price is rounded to the currency precision.');
+        assertSameValue('12.50', $excluded[1]['unit_amount'], 'a price already at the precision keeps its cents.');
+
+        \Group::$priceDisplayMethod = 0;
+        $included = $method->invoke($adapter, $order, 2);
+        assertSameValue('19.99', $included[0]['unit_amount'], 'the tax-included unit price is unchanged.');
+    } finally {
+        \Group::$priceDisplayMethod = $previousDisplay;
+    }
+}
+
 function test_prestashop_adapter_uses_tax_included_display_handles_db_strings_and_locale_floats()
 {
     // BUG-1478: Group::getPriceDisplayMethod returns DB string '0' or '1'.

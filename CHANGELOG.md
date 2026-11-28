@@ -8,6 +8,13 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.8.9] - 2026-11-28
+
+- fix(prestashop): round tax-excluded unit price to currency precision
+
+### Fixed
+- **Six-decimal unit price for customer groups that see prices without tax (`PrestaShopAdapter`):** The tax-excluded unit price came from `order_detail.unit_price_tax_excl` with six decimals, so checkout showed `16.658333 EUR` per item. It is now rounded to the currency precision, as the shop shows it.
+
 ## [1.8.8] - 2026-11-27
 
 - chore: rebuild canonical CMS package
